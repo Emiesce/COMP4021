@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>QuickDraw Slayers</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+<div id="game-room-area">
+
+    <!-- Start page: description + how to play (TODO: add screenshots/GIFs of each action) -->
+    <div id="game-room-start-page">
+        <div class="row"><div class="col">
+            <div class="title">QuickDraw Slayers</div>
+            <div id="description" class="panel">
+                <p><b>A real-time 2-player co-op card battle.</b> There are no turns: both players
+                act at the same time and every card takes effect the moment it is played.</p>
+                <p><b>How to play:</b> click a card or press <kbd>1</kbd>-<kbd>2</kbd>-<kbd>3</kbd>-<kbd>4</kbd>.
+                Cards cost Energy, which refills by 1 every 2.5 seconds. Defeat every enemy before the
+                4:00 master timer runs out. Press <kbd>C</kbd> for cheat mode.</p>
+                <!-- TODO (group): enemy attack timers, combos, floors, screenshots/GIFs -->
+            </div>
+            <div class="row">
+                <button id="start-signin-button">Sign In</button>
+                <button id="start-register-button">Register</button>
+            </div>
+        </div></div>
+    </div>
+
+    <!-- Register page -->
+    <div id="game-room-register-page" style="display: none">
+        <div class="row">
+            <form id="register-form" class="col">
+                <div class="subtitle">Register</div>
+                <input id="register-username" maxlength="10" placeholder="Enter your username">
+                <select id="register-avatar"><option class="placeholder" value="">Select your avatar</option></select>
+                <input id="register-name" maxlength="16" placeholder="Enter your name">
+                <input id="register-password" type="password" placeholder="Enter your password">
+                <input id="register-confirm" type="password" placeholder="Enter your password again">
+                <div class="row">
+                    <button id="register-button" type="submit">Register</button>
+                    <button class="back-button" type="button">Back</button>
+                </div>
+                <div id="register-message" class="message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sign-in page -->
+    <div id="game-room-signin-page" style="display: none">
+        <div class="row">
+            <form id="signin-form" class="col">
+                <div class="subtitle">Sign In</div>
+                <input id="signin-username" placeholder="Enter your username">
+                <input id="signin-password" type="password" placeholder="Enter your password">
+                <div class="row">
+                    <button id="signin-button" type="submit">Sign In</button>
+                    <button class="back-button" type="button">Back</button>
+                </div>
+                <div id="signin-message" class="message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Signed-in area: lobby, room, game, game over -->
+    <div id="game-room-content-page" style="display: none">
+        <div class="topbar">
+            <span>Hello <span id="game-room-user-avatar"></span> <span id="game-room-user-name"></span>!</span>
+            <form id="signout-form"><button id="signout-button" type="submit">Sign Out</button></form>
+        </div>
+
+        <!-- Lobby: open rooms -->
+        <div id="lobby-view" class="col">
+            <div class="subtitle">Lobby</div>
+            <div class="row">
+                <button id="quick-button">Quick Match</button>
+                <button id="create-button">Create Room</button>
+            </div>
+            <div id="lobby-error" class="message"></div>
+            <div id="rooms-list" class="panel"></div>
+        </div>
+
+        <!-- Inside a room: two slots, ready, countdown -->
+        <div id="room-view" class="col" style="display: none">
+            <div id="room-name" class="subtitle"></div>
+            <div class="row" id="room-slots"></div>
+            <div id="room-message" class="message"></div>
+            <div id="countdown"></div>
+            <div class="row">
+                <button id="ready-button">Ready</button>
+                <button id="leave-button">Leave Room</button>
+            </div>
+        </div>
+
+        <!-- Game -->
+        <div id="game-view" style="display: none">
+            <canvas id="game-canvas" width="960" height="540"></canvas>
+        </div>
+
+        <!-- Game over -->
+        <div id="over-view" class="col" style="display: none">
+            <div id="over-title" class="title"></div>
+            <div id="over-reason" class="message"></div>
+            <div id="over-stats" class="row"></div>
+            <div id="over-board" class="panel"></div>
+            <div class="row">
+                <button id="rematch-button">Rematch</button>
+                <button id="home-button">Return Home</button>
+            </div>
+            <div id="rematch-message" class="message"></div>
+        </div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="scripts/avatar.js"></script>
+<script src="scripts/game_room.js"></script>
+<script src="scripts/bounding_box.js"></script>
+<script src="scripts/sprite.js"></script>
+<script src="scripts/lobby.js"></script>
+<script src="scripts/game.js"></script>
+<script>
+$(function() {
+    GameRoom.init();
+    GameRoom.hooks.onSignIn = Lobby.connect;       // open the socket once signed in
+    GameRoom.hooks.onSignOut = Lobby.disconnect;
+    GameRoom.validate();
+});
+</script>
+</body>
+</html>

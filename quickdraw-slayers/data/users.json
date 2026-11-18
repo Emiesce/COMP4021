@@ -1,0 +1,12 @@
+{
+ "p1": {
+  "avatar": "Hamster",
+  "name": "p1",
+  "password": "$argon2id$v=19$m=65536,t=3,p=4$xBYI0k2LIckmR9SITLfiIg$IVu5F6WK5wD7/yYM8YdMymlldtNLK3aUMD8a4rxJwK4"
+ },
+ "p2": {
+  "avatar": "Rabbit",
+  "name": "p2",
+  "password": "$argon2id$v=19$m=65536,t=3,p=4$ko8YZODtcI/sYvgjTlU4cw$6NZc0CrYKupJIGbEhZz+0BV4IIhTQt40uPjmUsH2Iyo"
+ }
+}
