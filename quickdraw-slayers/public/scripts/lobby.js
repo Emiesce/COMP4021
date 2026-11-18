@@ -1,13 +1,14 @@
-// Browser side of the lobby / room / game-over screens (Lab 6's HandGame pattern).
+// Browser side of the lobby / room screens (Lab 6's HandGame pattern).
 // Owns the single Socket.IO connection; Game (game.js) borrows it.
 const Lobby = (function() {
     let socket = null;
     let me = null;          // {username, name, avatar} filled from the first room:update
-    const views = ["#lobby-view", "#room-view", "#game-view", "#over-view"];
-    const show = (id) => { views.forEach(v => $(v).toggle(v === id)); };
+    const views = ["#lobby-view", "#room-view", "#game-view"];
+    const show = (id) => { views.forEach(v => $(v).toggle(v === id)); $("#help-button").toggle(id !== "#game-view"); };
 
-    const connect = function() {
+    const connect = function(user) {
         if (socket) return;
+        me = user;
         socket = io();
         show("#lobby-view");
 
@@ -25,7 +26,6 @@ const Lobby = (function() {
 
         socket.on("room:update", (room) => {
             if (room.status === "playing") return;
-            if (room.status === "over") return;           // stay on the game-over page
             $("#lobby-error").text("");
             show("#room-view");
             $("#room-name").text(room.name);
@@ -33,8 +33,14 @@ const Lobby = (function() {
             for (let i = 0; i < 2; i++) {
                 const p = room.players[i];
                 const $s = $("<div class='slot'>").appendTo($slots);
-                if (p) $s.addClass("filled").toggleClass("ready", p.ready)
-                    .append($("<div>").html(Avatar.getCode(p.avatar)), $("<div>").text(p.name), $("<div>").text(p.ready ? "READY" : "not ready"));
+                if (p) {
+                    const mine = me && p.username === me.username;
+                    $s.addClass("filled").toggleClass("ready", p.ready)
+                        .append($("<div>").html(Avatar.getCode(p.avatar)),
+                                $("<div>").text(p.name + (mine ? " (you)" : "")),
+                                $("<div>").text(p.ready ? "READY" : "not ready"));
+                    if (mine) $("#ready-button").text(p.ready ? "Cancel Ready" : "Ready");
+                }
                 else $s.text("Empty slot");
             }
             $("#room-message").text(room.players.length < 2 ? "Waiting for another Slayer…" : "Both Slayers present. Click Ready!");
@@ -43,35 +49,18 @@ const Lobby = (function() {
 
         socket.on("room:countdown", (d) => { show("#room-view"); $("#countdown").text(d.seconds); });
         socket.on("room:countdown_cancel", () => $("#countdown").text(""));
-        socket.on("room:left", () => show("#lobby-view"));
+        socket.on("room:left", () => { $("#ready-button").text("Ready"); $("#countdown, #room-message").text(""); show("#lobby-view"); });
 
         socket.on("game:start", () => { show("#game-view"); Game.start(socket); });
-        socket.on("game:over", (data) => { Game.stop(); showOver(data); });
-        socket.on("room:rematch", (d) => $("#rematch-message").text(`Rematch votes: ${d.count}/${d.needed}`));
     };
 
     const disconnect = function() {
         if (socket) { socket.disconnect(); socket = null; }
         Game.stop();
-    };
-
-    const showOver = function(d) {
-        show("#over-view");
-        $("#over-title").text(d.result === "victory" ? "VICTORY!" : "DEFEAT");
-        $("#over-reason").text(`${d.reason}  Duration: ${d.duration}s`);
-        $("#rematch-message").text("");
-        const $stats = $("#over-stats").empty();
-        d.stats.forEach(s => {
-            $("<div class='stat-card'>").toggleClass("top", s.rank === 1).append(
-                $("<h3>").text(`#${s.rank} ${s.name}${s.cheat ? " (cheated)" : ""}`),
-                $("<div>").text("Damage dealt: " + s.damageDealt),
-                $("<div>").text("Attacks blocked: " + s.damageBlocked),
-                $("<div>").text("Cards played: " + s.cardsPlayed),
-                $("<div>").text("Survival time: " + s.survivalTime + "s"),
-                $("<b>").text("Score: " + s.score)).appendTo($stats);
-        });
-        const $b = $("#over-board").empty().append("<b>Top runs</b>");
-        d.leaderboard.forEach((e, i) => $b.append($("<div>").text(`${i + 1}. ${e.players.join(" & ")} - ${e.score} (${e.result})`)));
+        me = null;
+        $("#countdown, #room-message, #lobby-error").text("");
+        $("#ready-button").text("Ready");
+        show("#lobby-view");
     };
 
     $(function() {
@@ -79,8 +68,6 @@ const Lobby = (function() {
         $("#create-button").on("click", () => socket.emit("room:create", {}));
         $("#ready-button").on("click", () => socket.emit("lobby:ready"));
         $("#leave-button").on("click", () => socket.emit("room:leave"));
-        $("#rematch-button").on("click", () => { socket.emit("game:rematch"); $("#rematch-message").text("Waiting for your partner…"); });
-        $("#home-button").on("click", () => socket.emit("room:leave"));
     });
 
     return { connect, disconnect };

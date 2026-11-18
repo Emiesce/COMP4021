@@ -3,6 +3,22 @@ const GameRoom = (function() {
     let user = null;
     const hooks = { onSignIn: null, onSignOut: null };
 
+    // Show a message under a form; errors are red, success messages are green
+    const showMessage = function(selector, text, isError) {
+        $(selector).text(text).toggleClass("error", !!text && isError).toggleClass("success", !!text && !isError);
+    };
+
+    // Returns an error message, or "" when the registration input is fine
+    const validateRegister = function(username, avatar, name, password, confirmPassword) {
+        if (!username || !avatar || !name || !password || !confirmPassword)
+            return "Please fill in every field (username, avatar, name and password).";
+        if (!/^\w+$/.test(username))
+            return "Username can only contain letters, numbers and underscores.";
+        if (password != confirmPassword)
+            return "Passwords do not match.";
+        return "";
+    };
+
     const init = function() {
         // Populate the avatar selection
         Avatar.populate($("#register-avatar"));
@@ -12,7 +28,7 @@ const GameRoom = (function() {
             $("#game-room-start-page").hide();
             $("#game-room-signin-page").show();
             $("#signin-form").get(0).reset();
-            $("#signin-message").text("");
+            showMessage("#signin-message", "", false);
         });
 
         $("#start-register-button").on("click", function() {
@@ -20,7 +36,7 @@ const GameRoom = (function() {
             $("#game-room-start-page").hide();
             $("#game-room-register-page").show();
             $("#register-form").get(0).reset();
-            $("#register-message").text("");
+            showMessage("#register-message", "", false);
         });
 
         $(".back-button").on("click", function() {
@@ -45,9 +61,10 @@ const GameRoom = (function() {
             const password = $("#register-password").val().trim();
             const confirmPassword = $("#register-confirm").val().trim();
 
-            // Password and confirmation does not match
-            if (password != confirmPassword) {
-                $("#register-message").text("Passwords do not match.");
+            // Client-side validation (the server checks everything again)
+            const problem = validateRegister(username, avatar, name, password, confirmPassword);
+            if (problem) {
+                showMessage("#register-message", problem, true);
                 return;
             }
             
@@ -72,7 +89,7 @@ const GameRoom = (function() {
                     // F. Processing any error returned by the server
                     //
                     if (json.error) {
-                        $("#register-message").text(json.error);
+                        showMessage("#register-message", json.error, true);
                         return;
                     }
 
@@ -80,10 +97,10 @@ const GameRoom = (function() {
                     // J. Handling the success response from the server
                     //
                     $("#register-form").get(0).reset();
-                    $("#register-message").text("Your account has been successfully registered.");
+                    showMessage("#register-message", "Your account has been successfully registered. You can sign in now.", false);
                 })
                 .catch((err) => {
-                    $("#register-message").text(err);
+                    showMessage("#register-message", "Could not reach the server.", true);
                 });
         });
 
@@ -94,6 +111,11 @@ const GameRoom = (function() {
             // Get the input fields
             const username = $("#signin-username").val().trim();
             const password = $("#signin-password").val().trim();
+
+            if (!username || !password) {
+                showMessage("#signin-message", "Please enter your username and password.", true);
+                return;
+            }
 
             //
             // A. Preparing the user data
@@ -120,7 +142,7 @@ const GameRoom = (function() {
                     // F. Processing any error returned by the server
                     //
                     if (json.error) {
-                        $("#signin-message").text(json.error);
+                        showMessage("#signin-message", json.error, true);
                         return;
                     }
 
@@ -139,7 +161,7 @@ const GameRoom = (function() {
                     if (hooks.onSignIn) hooks.onSignIn(user);
                 })
                 .catch((err) => {
-                    $("#signin-message").text(err);
+                    showMessage("#signin-message", "Could not reach the server.", true);
                 });
         });
 

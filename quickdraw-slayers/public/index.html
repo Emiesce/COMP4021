@@ -7,6 +7,9 @@
     <link href="style.css" rel="stylesheet">
 </head>
 <body>
+<!-- Help button: visible on every page except the game itself; opens How to Play -->
+<button id="help-button" type="button" title="How to Play" aria-label="How to Play">?</button>
+
 <div id="game-room-area">
 
     <!-- Start page: description + how to play (TODO: add screenshots/GIFs of each action) -->
@@ -16,10 +19,8 @@
             <div id="description" class="panel">
                 <p><b>A real-time 2-player co-op card battle.</b> There are no turns: both players
                 act at the same time and every card takes effect the moment it is played.</p>
-                <p><b>How to play:</b> click a card or press <kbd>1</kbd>-<kbd>2</kbd>-<kbd>3</kbd>-<kbd>4</kbd>.
-                Cards cost Energy, which refills by 1 every 2.5 seconds. Defeat every enemy before the
-                4:00 master timer runs out. Press <kbd>C</kbd> for cheat mode.</p>
-                <!-- TODO (group): enemy attack timers, combos, floors, screenshots/GIFs -->
+                <p>Defeat the enemy on every floor before the 4:00 master timer runs out. Click a card or press
+                <kbd>1</kbd>-<kbd>4</kbd> to play it. Press the green <b>?</b> button for the full guide.</p>
             </div>
             <div class="row">
                 <button id="start-signin-button">Sign In</button>
@@ -63,11 +64,68 @@
         </div>
     </div>
 
-    <!-- Signed-in area: lobby, room, game, game over -->
+    <!-- How to play page: screenshots/GIFs live in public/images/howto/ (see scripts/howto.js) -->
+    <div id="howto-page" style="display: none">
+        <div class="howto-wrap">
+            <div class="subtitle">How to Play</div>
+            <button class="howto-back" type="button">Back</button>
+
+            <section class="howto-step" data-shot="01-goal">
+                <h3>1. The goal</h3>
+                <p>Two Slayers fight together in real time. There are no turns: both of you act at the same time and every
+                card takes effect the moment it is played. Defeat the enemy on all 3 floors before the 4:00 master timer
+                reaches 0.</p>
+            </section>
+            <section class="howto-step" data-shot="02-play-card">
+                <h3>2. Play a card</h3>
+                <p>You hold 4 cards. Click a card, or press <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>, to play it
+                instantly. A new card is drawn to replace it.</p>
+            </section>
+            <section class="howto-step" data-shot="03-energy">
+                <h3>3. Energy</h3>
+                <p>Cards cost Energy. Your Energy bar refills by 1 every 2.5 seconds. The bar holds 3 on floor 1, 4 on floor 2
+                and 5 on floor 3, so spend it before it is full.</p>
+            </section>
+            <section class="howto-step" data-shot="04-enemy-timer">
+                <h3>4. Enemy attack timer</h3>
+                <p>Every enemy telegraphs its next attack with a countdown bar of fixed length. When the bar empties the attack
+                fires at the Slayers, so block or kill the enemy before then.</p>
+            </section>
+            <section class="howto-step" data-shot="05-block">
+                <h3>5. Defend</h3>
+                <p>Block cards fill your Shield meter. Shield soaks incoming damage before your HP does, so time your block for
+                just before the enemy timer runs out.</p>
+            </section>
+            <section class="howto-step" data-shot="06-combo">
+                <h3>6. Team combos</h3>
+                <p>Work together: one Slayer applies a debuff and the partner follows with a big attack, or one shields while the
+                other attacks.</p>
+            </section>
+            <section class="howto-step" data-shot="07-rewards">
+                <h3>7. Between floors</h3>
+                <p>After floors 1 and 2 you get a 5-second overlay to choose a new card, a buff or a heal. The master timer is
+                paused while you choose.</p>
+            </section>
+            <section class="howto-step" data-shot="08-down">
+                <h3>8. If you go down</h3>
+                <p>If your HP reaches 0 while your partner is alive, you spectate. If your partner clears the floor you are revived
+                for the next one. If both Slayers fall, or time runs out, it is Defeat.</p>
+            </section>
+            <section class="howto-step" data-shot="09-cheat">
+                <h3>9. Cheat mode</h3>
+                <p>Press <kbd>C</kbd> to switch cheat mode on or off for yourself: infinite Energy, no damage taken and 3x damage.
+                A "CHEAT MODE ACTIVE" label shows at the top left and your partner is notified.</p>
+            </section>
+        </div>
+    </div>
+
+    <!-- Signed-in area: lobby, room, game -->
     <div id="game-room-content-page" style="display: none">
         <div class="topbar">
             <span>Hello <span id="game-room-user-avatar"></span> <span id="game-room-user-name"></span>!</span>
-            <form id="signout-form"><button id="signout-button" type="submit">Sign Out</button></form>
+            <span class="topbar-buttons">
+                <form id="signout-form"><button id="signout-button" type="submit">Sign Out</button></form>
+            </span>
         </div>
 
         <!-- Lobby: open rooms -->
@@ -93,22 +151,9 @@
             </div>
         </div>
 
-        <!-- Game -->
+        <!-- Game: intentionally blank for now (game logic comes later) -->
         <div id="game-view" style="display: none">
-            <canvas id="game-canvas" width="960" height="540"></canvas>
-        </div>
-
-        <!-- Game over -->
-        <div id="over-view" class="col" style="display: none">
-            <div id="over-title" class="title"></div>
-            <div id="over-reason" class="message"></div>
-            <div id="over-stats" class="row"></div>
-            <div id="over-board" class="panel"></div>
-            <div class="row">
-                <button id="rematch-button">Rematch</button>
-                <button id="home-button">Return Home</button>
-            </div>
-            <div id="rematch-message" class="message"></div>
+            <canvas id="game-canvas" width="960" height="540"></canvas>  <!-- TODO: game rendering -->
         </div>
     </div>
 </div>
@@ -116,8 +161,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="scripts/avatar.js"></script>
 <script src="scripts/game_room.js"></script>
-<script src="scripts/bounding_box.js"></script>
-<script src="scripts/sprite.js"></script>
+<script src="scripts/howto.js"></script>
 <script src="scripts/lobby.js"></script>
 <script src="scripts/game.js"></script>
 <script>
@@ -125,6 +169,7 @@ $(function() {
     GameRoom.init();
     GameRoom.hooks.onSignIn = Lobby.connect;       // open the socket once signed in
     GameRoom.hooks.onSignOut = Lobby.disconnect;
+    HowTo.init();
     GameRoom.validate();
 });
 </script>

@@ -10,17 +10,13 @@
 //   room:quick            join the first open room, or create one
 //   room:leave            leave the room
 //   lobby:ready bool?     set (or toggle) your ready flag
-//   game:play   slot      play the card in hand slot 0-3
-//   game:cheat  bool      switch your cheat mode on/off
-//   game:rematch          vote for a rematch (game over page)
 //   rooms:request         ask for the open-room list again
 // Socket.IO events (server -> client):
 //   rooms:list [{id,name,count,max}]
 //   room:update {id,name,status,players:[{username,name,avatar,ready}]}
 //   room:countdown {seconds} / room:countdown_cancel
-//   room:rematch {count,needed}
 //   room:left / room:error "message"
-//   game:start {roomId, players}   (then game:state / game:hand / game:event / game:over, see game.js)
+//   game:start {roomId, players}   (the game page is blank for now; see server/game.js)
 const Game = require("./game");
 
 const MAX_PLAYERS = 2;
@@ -53,7 +49,7 @@ module.exports = function(io) {
         const room = {
             id: "r" + roomCounter,
             name: cleanName(name, user.name + "'s room"),
-            players: [], status: "lobby", countdown: null, game: null, rematch: new Set()
+            players: [], status: "lobby", countdown: null, game: null
         };
         rooms.set(room.id, room);
         return room;
@@ -102,7 +98,6 @@ module.exports = function(io) {
         const idx = room.players.findIndex(p => p.socketId === socket.id);
         if (idx !== -1) room.players.splice(idx, 1);
         userRoom.delete(user.username);
-        room.rematch.delete(user.username);
         socket.leave(room.id);
         socket.data.roomId = null;
 
@@ -112,7 +107,7 @@ module.exports = function(io) {
             cancelCountdown(room);
             if (room.status === "playing" && room.game) {
                 room.game.playerLeft(socket.id);          // ends the game
-            } else if (room.status !== "over") {
+            } else {
                 room.status = "lobby";
             }
             room.players.forEach(p => { p.ready = false; });
@@ -129,16 +124,13 @@ module.exports = function(io) {
 
     const startGame = (room) => {
         room.status = "playing";
-        room.rematch.clear();
         sendRooms();
         io.to(room.id).emit("game:start", {
             roomId: room.id,
             players: room.players.map(p => ({ username: p.username, name: p.name, avatar: p.avatar }))
         });
         room.game = Game.create(io, room, () => {
-            room.status = "over";
-            room.players.forEach(p => { p.ready = false; });
-            sendRoom(room);
+            // TODO: game over handling
         });
         room.game.start();
     };
@@ -196,7 +188,7 @@ module.exports = function(io) {
 
         socket.on("lobby:ready", (value) => {
             const room = rooms.get(socket.data.roomId);
-            if (!room || room.status === "playing" || room.status === "over") return;
+            if (!room || room.status === "playing") return;
             const me = room.players.find(p => p.socketId === socket.id);
             if (!me) return;
             me.ready = (typeof value === "boolean") ? value : !me.ready;
@@ -207,27 +199,7 @@ module.exports = function(io) {
             }
         });
 
-        // Game messages only reach the game of the sender's own room
-        socket.on("game:play", (slot) => {
-            const room = rooms.get(socket.data.roomId);
-            if (room && room.game && room.status === "playing") room.game.play(socket.id, slot);
-        });
-
-        socket.on("game:cheat", (on) => {
-            const room = rooms.get(socket.data.roomId);
-            if (room && room.game && room.status === "playing") room.game.setCheat(socket.id, on);
-        });
-
-        socket.on("game:rematch", () => {
-            const room = rooms.get(socket.data.roomId);
-            if (!room || room.status !== "over" || room.players.length < MAX_PLAYERS) return;
-            room.rematch.add(user.username);
-            io.to(room.id).emit("room:rematch", { count: room.rematch.size, needed: MAX_PLAYERS });
-            if (room.rematch.size >= MAX_PLAYERS) {
-                room.rematch.clear();
-                startCountdown(room);
-            }
-        });
+        // TODO: game events (play card etc.) go here and must only reach the sender's own room
 
         socket.on("disconnect", () => {
             console.log("Player disconnected:", user.username, socket.id);
