@@ -5,6 +5,7 @@
 const HowTo = (function() {
     const EXTENSIONS = ["gif", "png", "jpg"];
     let returnTo = "#game-room-start-page";     // the page to show again when the guide is closed
+    let isRequired = false;
     let current = 0;
     let total = 0;
 
@@ -34,8 +35,12 @@ const HowTo = (function() {
 
     // Open the guide from page `from`; closing it shows `back` (default: the same page).
     // `back` may also be a function to run when the guide is closed.
-    const open = function(from, back) {
+    // With required = true (new players) the guide can't be skipped: no Close button, no dots,
+    // no Escape. They move with Back/Next and press Done on the last step.
+    const open = function(from, back, required) {
         returnTo = back || from;
+        isRequired = !!required;
+        $("#howto-page").toggleClass("required", isRequired);
         $(from).hide();
         $("#howto-page").show();
         $("#help-button").hide();
@@ -70,20 +75,16 @@ const HowTo = (function() {
             if (!$("#howto-page").is(":visible")) return;
             if (e.key === "ArrowRight") $("#howto-next").click();
             else if (e.key === "ArrowLeft") showStep(current - 1);
-            else if (e.key === "Escape") close();
+            else if (e.key === "Escape" && !isRequired) close();
         });
 
         // The green ? opens the guide from whichever page is showing; closing returns there
         $("#help-button").on("click", function() {
             const pages = ["#game-room-start-page", "#game-room-signin-page", "#game-room-register-page",
-                           "#game-room-register-success-page", "#game-room-content-page"];
+                           "#game-room-content-page"];
             const here = pages.find(p => $(p).is(":visible"));
             if (here) open(here);
         });
-
-        // After registering: "Read How to Play" -> guide -> Done -> sign-in page
-        $("#success-howto-button").on("click", () =>
-            open("#game-room-register-success-page", () => $("#success-signin-button").click()));
     };
 
     return { init, open };

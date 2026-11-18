@@ -76,7 +76,6 @@ form button {
 #game-room-start-page,
 #game-room-signin-page,
 #game-room-register-page,
-#game-room-register-success-page,
 #game-room-content-page {
     display: flex;
     align-items: stretch;
@@ -128,10 +127,6 @@ kbd { background: #ddd; border-radius: 3px; padding: 1px 6px; }
     box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 #help-button:hover { background: #2c6; }
 
-/* Registration success page */
-.success-card { max-width: 520px; text-align: center; }
-.success-text { font-size: 1.1rem; line-height: 1.5; }
-
 /* How to play slideshow */
 #howto-progress { text-align: center; color: #666; margin: 4px 0 10px; }
 .howto-step { border-top: none; padding: 10px 0; min-height: 320px; }
@@ -141,3 +136,8 @@ kbd { background: #ddd; border-radius: 3px; padding: 1px 6px; }
 #howto-dots .dot.active { background: #3a7; transform: scale(1.3); }
 .howto-nav { display: flex; justify-content: space-between; gap: 10px; }
 .howto-nav button { font-size: 1rem; padding: 10px 24px; min-width: 110px; }
+
+/* Required (first-time) guide: no way to skip it */
+#howto-required-note { display: none; text-align: center; font-weight: bold; color: #3a7; margin-bottom: 6px; }
+#howto-page.required #howto-required-note { display: block; }
+#howto-page.required .howto-back, #howto-page.required #howto-dots { display: none; }
