@@ -4,7 +4,7 @@ const Lobby = (function() {
     let socket = null;
     let me = null;          // {username, name, avatar} filled from the first room:update
     const views = ["#lobby-view", "#room-view", "#game-view"];
-    const show = (id) => { views.forEach(v => $(v).toggle(v === id)); $("#help-button").toggle(id !== "#game-view"); };
+    const show = (id) => { views.forEach(v => $(v).toggle(v === id)); };
 
     const connect = function(user) {
         if (socket) return;
