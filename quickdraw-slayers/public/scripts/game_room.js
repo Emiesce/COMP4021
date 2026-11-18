@@ -1,6 +1,7 @@
 const GameRoom = (function() {
     // This stores the signed in user
     let user = null;
+    let registeredUsername = "";      // pre-fills the sign-in form after registering
     const hooks = { onSignIn: null, onSignOut: null };
 
     // Show a message under a form; errors are red, success messages are green
@@ -37,6 +38,16 @@ const GameRoom = (function() {
             $("#game-room-register-page").show();
             $("#register-form").get(0).reset();
             showMessage("#register-message", "", false);
+        });
+
+        // Registration success page: go to sign in with the new username filled in
+        $("#success-signin-button").on("click", function() {
+            $("#game-room-register-success-page").hide();
+            $("#game-room-signin-page").show();
+            $("#signin-form").get(0).reset();
+            showMessage("#signin-message", "", false);
+            $("#signin-username").val(registeredUsername);
+            $("#signin-password").focus();
         });
 
         $(".back-button").on("click", function() {
@@ -97,7 +108,11 @@ const GameRoom = (function() {
                     // J. Handling the success response from the server
                     //
                     $("#register-form").get(0).reset();
-                    showMessage("#register-message", "Your account has been successfully registered. You can sign in now.", false);
+                    showMessage("#register-message", "", false);
+                    registeredUsername = username;
+                    $("#success-name").text(name);
+                    $("#game-room-register-page").hide();
+                    $("#game-room-register-success-page").show();
                 })
                 .catch((err) => {
                     showMessage("#register-message", "Could not reach the server.", true);

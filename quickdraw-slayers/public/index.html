@@ -48,6 +48,20 @@
         </div>
     </div>
 
+    <!-- Registration success page: shown right after an account is created -->
+    <div id="game-room-register-success-page" style="display: none">
+        <div class="row">
+            <div class="col success-card">
+                <div class="subtitle">Account created!</div>
+                <p class="success-text">Welcome, <b id="success-name"></b>. New to QuickDraw Slayers? Take a minute to learn how to play with your partner.</p>
+                <div class="row">
+                    <button id="success-howto-button" type="button">Read How to Play</button>
+                    <button id="success-signin-button" type="button">Go to Sign In</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Sign-in page -->
     <div id="game-room-signin-page" style="display: none">
         <div class="row">
@@ -68,7 +82,9 @@
     <div id="howto-page" style="display: none">
         <div class="howto-wrap">
             <div class="subtitle">How to Play</div>
-            <button class="howto-back" type="button">Back</button>
+            <button class="howto-back" type="button">Close</button>
+            <div id="howto-progress">Step <span id="howto-current">1</span> of <span id="howto-total"></span></div>
+            <div id="howto-slides">
 
             <section class="howto-step" data-shot="01-goal">
                 <h3>1. The goal</h3>
@@ -116,6 +132,12 @@
                 <p>Press <kbd>C</kbd> to switch cheat mode on or off for yourself: infinite Energy, no damage taken and 3x damage.
                 A "CHEAT MODE ACTIVE" label shows at the top left and your partner is notified.</p>
             </section>
+            </div>
+            <div id="howto-dots"></div>
+            <div class="howto-nav">
+                <button id="howto-prev" type="button">Back</button>
+                <button id="howto-next" type="button">Next</button>
+            </div>
         </div>
     </div>
 
