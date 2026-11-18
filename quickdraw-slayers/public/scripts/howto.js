@@ -1,10 +1,14 @@
-// How to Play: a step-by-step slideshow (one .howto-step at a time).
+// How to Play: a pop-up slideshow (one .howto-step at a time) over a dimmed page.
 // Each <section class="howto-step" data-shot="NAME"> looks for an image in public/images/howto/
 // called NAME.gif, NAME.png or NAME.jpg. Drop your screenshots/GIFs there (e.g. 02-play-card.gif)
 // and they appear automatically; until then a placeholder box is shown.
+//
+// Two modes:
+//   optional (the green ? button): X button, Escape and clicking the dark background all close it.
+//   required (new players): no way to skip it. Back/Next only, and Done on the last step.
 const HowTo = (function() {
     const EXTENSIONS = ["gif", "png", "jpg"];
-    let returnTo = "#game-room-start-page";     // the page to show again when the guide is closed
+    let afterClose = null;          // function to run when the guide is closed (or null)
     let isRequired = false;
     let current = 0;
     let total = 0;
@@ -31,28 +35,24 @@ const HowTo = (function() {
         $("#howto-dots .dot").each(function(index) { $(this).toggleClass("active", index === current); });
         $("#howto-prev").prop("disabled", current === 0);
         $("#howto-next").text(current === total - 1 ? "Done" : "Next");
+        $(".howto-wrap").scrollTop(0);
     };
 
-    // Open the guide from page `from`; closing it shows `back` (default: the same page).
-    // `back` may also be a function to run when the guide is closed.
-    // With required = true (new players) the guide can't be skipped: no Close button, no dots,
-    // no Escape. They move with Back/Next and press Done on the last step.
-    const open = function(from, back, required) {
-        returnTo = back || from;
+    // Open the guide. `callback` runs after it is closed. required = true: it cannot be skipped.
+    const open = function(callback, required) {
+        afterClose = callback || null;
         isRequired = !!required;
-        $("#howto-page").toggleClass("required", isRequired);
-        $(from).hide();
-        $("#howto-page").show();
+        $("#howto-page").toggleClass("required", isRequired).css("display", "flex");
         $("#help-button").hide();
         showStep(0);
-        window.scrollTo(0, 0);
     };
 
     const close = function() {
         $("#howto-page").hide();
         $("#help-button").show();
-        if (typeof returnTo === "function") returnTo();
-        else $(returnTo).show();
+        const callback = afterClose;
+        afterClose = null;
+        if (callback) callback();
     };
 
     const init = function() {
@@ -68,9 +68,14 @@ const HowTo = (function() {
 
         $("#howto-prev").on("click", () => showStep(current - 1));
         $("#howto-next").on("click", () => { if (current === total - 1) close(); else showStep(current + 1); });
-        $(".howto-back").on("click", close);
+        $(".howto-back").on("click", () => { if (!isRequired) close(); });
 
-        // Keyboard: arrows move between steps, Escape closes
+        // Click on the dark background closes the optional guide
+        $("#howto-page").on("click", function(e) {
+            if (e.target === this && !isRequired) close();
+        });
+
+        // Keyboard: arrows move between steps, Escape closes the optional guide
         $(document).on("keydown", function(e) {
             if (!$("#howto-page").is(":visible")) return;
             if (e.key === "ArrowRight") $("#howto-next").click();
@@ -78,13 +83,8 @@ const HowTo = (function() {
             else if (e.key === "Escape" && !isRequired) close();
         });
 
-        // The green ? opens the guide from whichever page is showing; closing returns there
-        $("#help-button").on("click", function() {
-            const pages = ["#game-room-start-page", "#game-room-signin-page", "#game-room-register-page",
-                           "#game-room-content-page"];
-            const here = pages.find(p => $(p).is(":visible"));
-            if (here) open(here);
-        });
+        // The green ? opens the optional guide from any page
+        $("#help-button").on("click", () => open(null, false));
     };
 
     return { init, open };

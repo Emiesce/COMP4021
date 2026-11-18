@@ -1,12 +1,12 @@
 {
  "p1": {
-  "avatar": "Hamster",
   "name": "p1",
-  "password": "$argon2id$v=19$m=65536,t=3,p=4$xBYI0k2LIckmR9SITLfiIg$IVu5F6WK5wD7/yYM8YdMymlldtNLK3aUMD8a4rxJwK4"
+  "password": "$argon2id$v=19$m=65536,t=3,p=4$tko/N/07JwLUQm1vl927Ag$XJkzt80hRmywbQ4zFikp5K9693Vs9xLsVMc/UkGexVg",
+  "seenGuide": true
  },
  "p2": {
-  "avatar": "Rabbit",
   "name": "p2",
-  "password": "$argon2id$v=19$m=65536,t=3,p=4$ko8YZODtcI/sYvgjTlU4cw$6NZc0CrYKupJIGbEhZz+0BV4IIhTQt40uPjmUsH2Iyo"
+  "password": "$argon2id$v=19$m=65536,t=3,p=4$khTCnYfoyNRHsckrDOc4Hw$e55+83E9ZiFSPoIvF92fCcvs9Fw7WyJJT1LGxrHAhUQ",
+  "seenGuide": true
  }
 }

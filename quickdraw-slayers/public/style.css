@@ -110,9 +110,6 @@ kbd { background: #ddd; border-radius: 3px; padding: 1px 6px; }
 .message.success { color: #27ae60; font-style: normal; font-weight: bold; }
 
 /* How to play page */
-#howto-page { width: 100%; }
-.howto-wrap { max-width: 760px; margin: 0 auto; padding: 0 20px 60px; }
-.howto-back { font-size: 1rem; padding: 8px 16px; margin-bottom: 10px; }
 .howto-step { padding: 14px 0; }
 .howto-step h3 { margin: 0 0 6px; }
 .howto-step p { margin: 0 0 10px; line-height: 1.5; }
@@ -141,3 +138,31 @@ kbd { background: #ddd; border-radius: 3px; padding: 1px 6px; }
 #howto-required-note { display: none; text-align: center; font-weight: bold; color: #3a7; margin-bottom: 6px; }
 #howto-page.required #howto-required-note { display: block; }
 #howto-page.required .howto-back, #howto-page.required #howto-dots { display: none; }
+
+/* Password fields with a Show/Hide toggle */
+.password-field { position: relative; display: flex; }
+.password-field input { flex: 1; padding-right: 70px; }
+.password-field .toggle-password { position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    font-size: 0.8rem; padding: 4px 8px; border: none; background: transparent; color: #3a7; cursor: pointer; }
+form button:disabled { opacity: 0.6; cursor: wait; }
+
+/* Initial badge in lobby slots (replaces the old avatars) */
+.initial { width: 44px; height: 44px; margin: 0 auto 6px; border-radius: 50%; background: #3a7; color: #fff;
+    font-size: 22px; font-weight: bold; line-height: 44px; }
+
+/* How to Play as a pop-up over a dimmed page */
+#howto-page { position: fixed; inset: 0; z-index: 100; display: none; align-items: center; justify-content: center;
+    padding: 16px; background: rgba(10, 10, 25, 0.65); backdrop-filter: blur(3px); animation: howto-fade 0.2s ease-out; }
+.howto-wrap { position: relative; background: #fff; border-radius: 14px; width: 100%; max-width: 760px; max-height: 92vh;
+    overflow-y: auto; padding: 4px 28px 24px; box-sizing: border-box; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    animation: howto-pop 0.22s ease-out; }
+.howto-wrap .subtitle { font-size: 30px; padding: 18px 0 6px; }
+.howto-back { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; padding: 0; border-radius: 50%;
+    border: none; background: #eee; font-size: 22px; line-height: 1; cursor: pointer; }
+.howto-back:hover { background: #ddd; }
+@keyframes howto-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes howto-pop { from { opacity: 0; transform: scale(0.95) translateY(8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 600px) { .howto-wrap { padding: 4px 16px 18px; } .howto-step { min-height: 0; } }
+
+/* Long names wrap instead of overflowing */
+.slot, .topbar { overflow-wrap: anywhere; }

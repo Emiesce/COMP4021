@@ -32,18 +32,23 @@
     <!-- Register page -->
     <div id="game-room-register-page" style="display: none">
         <div class="row">
-            <form id="register-form" class="col">
+            <form id="register-form" class="col" autocomplete="on">
                 <div class="subtitle">Register</div>
-                <input id="register-username" maxlength="10" placeholder="Enter your username">
-                <select id="register-avatar"><option class="placeholder" value="">Select your avatar</option></select>
-                <input id="register-name" maxlength="16" placeholder="Enter your name">
-                <input id="register-password" type="password" placeholder="Enter your password">
-                <input id="register-confirm" type="password" placeholder="Enter your password again">
+                <input id="register-username" maxlength="16" placeholder="Username (max 16: letters, numbers, _)" autocomplete="username" autocapitalize="none" spellcheck="false">
+                <input id="register-name" maxlength="20" placeholder="Name" autocomplete="nickname">
+                <div class="password-field">
+                    <input id="register-password" type="password" placeholder="Password" autocomplete="new-password">
+                    <button type="button" class="toggle-password" aria-label="Show password">Show</button>
+                </div>
+                <div class="password-field">
+                    <input id="register-confirm" type="password" placeholder="Confirm password" autocomplete="new-password">
+                    <button type="button" class="toggle-password" aria-label="Show password">Show</button>
+                </div>
                 <div class="row">
                     <button id="register-button" type="submit">Register</button>
                     <button class="back-button" type="button">Back</button>
                 </div>
-                <div id="register-message" class="message"></div>
+                <div id="register-message" class="message" role="alert"></div>
             </form>
         </div>
     </div>
@@ -51,24 +56,27 @@
     <!-- Sign-in page -->
     <div id="game-room-signin-page" style="display: none">
         <div class="row">
-            <form id="signin-form" class="col">
+            <form id="signin-form" class="col" autocomplete="on">
                 <div class="subtitle">Sign In</div>
-                <input id="signin-username" placeholder="Enter your username">
-                <input id="signin-password" type="password" placeholder="Enter your password">
+                <input id="signin-username" maxlength="16" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false">
+                <div class="password-field">
+                    <input id="signin-password" type="password" placeholder="Password" autocomplete="current-password">
+                    <button type="button" class="toggle-password" aria-label="Show password">Show</button>
+                </div>
                 <div class="row">
                     <button id="signin-button" type="submit">Sign In</button>
                     <button class="back-button" type="button">Back</button>
                 </div>
-                <div id="signin-message" class="message"></div>
+                <div id="signin-message" class="message" role="alert"></div>
             </form>
         </div>
     </div>
 
     <!-- How to play page: screenshots/GIFs live in public/images/howto/ (see scripts/howto.js) -->
-    <div id="howto-page" style="display: none">
+    <div id="howto-page" style="display: none" role="dialog" aria-modal="true" aria-label="How to Play">
         <div class="howto-wrap">
             <div class="subtitle">How to Play</div>
-            <button class="howto-back" type="button">Close</button>
+            <button class="howto-back" type="button" aria-label="Close">&times;</button>
             <div id="howto-required-note">New Slayer? Please go through all the steps before you sign in.</div>
             <div id="howto-progress">Step <span id="howto-current">1</span> of <span id="howto-total"></span></div>
             <div id="howto-slides">
@@ -131,7 +139,7 @@
     <!-- Signed-in area: lobby, room, game -->
     <div id="game-room-content-page" style="display: none">
         <div class="topbar">
-            <span>Hello <span id="game-room-user-avatar"></span> <span id="game-room-user-name"></span>!</span>
+            <span>Hello <span id="game-room-user-name"></span>!</span>
             <span class="topbar-buttons">
                 <form id="signout-form"><button id="signout-button" type="submit">Sign Out</button></form>
             </span>
@@ -168,7 +176,6 @@
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
-<script src="scripts/avatar.js"></script>
 <script src="scripts/game_room.js"></script>
 <script src="scripts/howto.js"></script>
 <script src="scripts/lobby.js"></script>

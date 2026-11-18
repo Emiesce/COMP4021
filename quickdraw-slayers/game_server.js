@@ -33,145 +33,140 @@ function containWordCharsOnly(text) {
     return /^\w+$/.test(text);
 }
 
-// Handle the /register endpoint
+// Limits for account details.
+// Username: letters, numbers and underscores only (so no spaces), 1-16 characters, unique ignoring case.
+// Name: anything you like (spaces, symbols, emoji), just not empty and at most 20 characters.
+const MIN_USERNAME = 1;
+const MAX_USERNAME = 16;
+const MAX_NAME = 20;
+const MAX_PASSWORD = 128;
+
+// Find the stored username that matches `username` ignoring upper/lower case (or null)
+const findUsername = (users, username) =>
+    Object.keys(users).find(key => key.toLowerCase() === username.toLowerCase()) || null;
+
+// Remove control characters and surrounding spaces from a name
+const cleanName = (name) => name.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+
+// Read / write the accounts file
+const loadUsers = () => JSON.parse(fs.readFileSync("data/users.json"));
+const saveUsers = (users) => fs.writeFileSync("data/users.json", JSON.stringify(users, null, " "));
+
+// A new account must read How to Play once. Accounts without the flag (older ones) are treated as done.
+const needsGuide = (users, username) => Object.hasOwn(users, username) && users[username].seenGuide === false;
+
+// Handle the /register endpoint: creates the account (the player then reads How to Play and signs in)
 app.post("/register", async (req, res) => {
-    //
-    // C. Reading the json input
-    //
+    const { username, name, password } = req.body;
+    const users = loadUsers();
 
-    // Get the JSON data from the body
-    const { username, avatar, name, password } = req.body;
-
-    //
-    // D. Reading the users.json file
-    //
-
-    // Add your code here
-    const users = JSON.parse(fs.readFileSync("data/users.json"));
-    
-    //
-    // E. Checking for the user data correctness
-    //
-    
-    // Add your code here
-    if (!username || !avatar || !name || !password) {
-        res.json({ error: "Username/avatar/name/password cannot be empty." });
+    // Validation (the browser checks too, but the server never trusts it)
+    if (typeof username !== "string" || typeof name !== "string" || typeof password !== "string") {
+        res.json({ error: "Username/name/password cannot be empty." });
         return;
     }
-
+    const cleanedName = cleanName(name);
+    if (!username || !cleanedName || !password) {
+        res.json({ error: "Username/name/password cannot be empty." });
+        return;
+    }
     if (!containWordCharsOnly(username)) {
-        res.json({ error: "Username can only contain underscores, letters or numbers." });
+        res.json({ error: "Username can only contain letters, numbers and underscores (no spaces)." });
         return;
     }
-
-    if (Object.hasOwn(users, username)) {
+    if (username.length < MIN_USERNAME || username.length > MAX_USERNAME) {
+        res.json({ error: `Username must be ${MIN_USERNAME}-${MAX_USERNAME} characters.` });
+        return;
+    }
+    if ([...cleanedName].length > MAX_NAME) {
+        res.json({ error: `Name can be at most ${MAX_NAME} characters.` });
+        return;
+    }
+    if (password.length > MAX_PASSWORD) {
+        res.json({ error: `Password can be at most ${MAX_PASSWORD} characters.` });
+        return;
+    }
+    if (findUsername(users, username)) {
         res.json({ error: "Username has already been used." });
         return;
     }
 
-    //
-    // G. Adding the new user account
-    //
-
-    // Hash the password
+    // Save the account; seenGuide: false means the player must go through How to Play first
     const hash = await argon2.hash(password);
+    users[username] = { name: cleanedName, password: hash, seenGuide: false };
+    saveUsers(users);
 
-    // Add your code here
-    users[username] = { avatar, name, password: hash };
-
-    //
-    // H. Saving the users.json file
-    //
-
-    // Add your code here
-    fs.writeFileSync("data/users.json", JSON.stringify(users, null, " "));
-
-    //
-    // I. Sending a success response to the browser
-    //
- 
-    res.json({ success: true });
+    // The player is NOT signed in. This browser session is only allowed to mark the guide as done
+    // for this new account (so they read it once now and then sign in normally).
+    req.session.guideUser = username;
+    res.json({ success: true, username, name: cleanedName, needsGuide: true });
 });
 
 // Handle the /signin endpoint
 app.post("/signin", async (req, res) => {
-    // Get the JSON data from the body
     const { username, password } = req.body;
+    const users = loadUsers();
 
-    //
-    // D. Reading the users.json file
-    //
-
-    // Add your code here
-    const users = JSON.parse(fs.readFileSync("data/users.json"));
-    //
-    // E. Checking for username/password
-    //
-
-    // Add your code here
-
-    // REPLACE THIS CODE WITH YOUR CODE
-    if (!Object.hasOwn(users, username)) {
+    // Same message for an unknown user and a wrong password
+    const key = (typeof username === "string" && typeof password === "string") ? findUsername(users, username) : null;
+    if (!key) {
         res.json({ error: "Incorrect username/password." });
         return;
     }
-    const user = users[username];
-
-    // If password is incorrect, return an error
+    const user = users[key];
     const verified = await argon2.verify(user.password, password);
     if (!verified) {
         res.json({ error: "Incorrect username/password." });
         return;
     }
 
-    //
-    // G. Sending a success response with the user account
-    //
-
-    // Add your code here
-    req.session.user = { username, avatar: user.avatar, name: user.name };
- 
-    res.json({ user: req.session.user });
+    req.session.user = { username: key, name: user.name };
+    res.json({ user: req.session.user, needsGuide: needsGuide(users, key) });
 });
 
-// Handle the /validate endpoint
+// Handle the /validate endpoint: is this browser still signed in?
 app.get("/validate", (req, res) => {
-
-    //
-    // B. Getting req.session.user
-    //
-
-    // Add your code here
     const user = req.session.user;
-
     if (!user) {
         res.json({ error: "You have not signed in." });
         return;
     }
 
-    //
-    // D. Sending a success response with the user account
-    //
+    // The account may have been removed from users.json since the session was created
+    const users = loadUsers();
+    if (!Object.hasOwn(users, user.username)) {
+        delete req.session.user;
+        res.json({ error: "You have not signed in." });
+        return;
+    }
 
-    res.json({ user });
+    res.json({ user, needsGuide: needsGuide(users, user.username) });
+});
+
+// Handle the /guide-complete endpoint: the player reached the end of How to Play.
+// Allowed for a signed-in player, or for the account this browser has just registered.
+app.post("/guide-complete", (req, res) => {
+    const username = req.session.user ? req.session.user.username : req.session.guideUser;
+    if (!username) {
+        res.json({ error: "You have not signed in." });
+        return;
+    }
+    const users = loadUsers();
+    if (!Object.hasOwn(users, username)) {
+        res.json({ error: "Account not found." });
+        return;
+    }
+    users[username].seenGuide = true;
+    saveUsers(users);
+    delete req.session.guideUser;
+    res.json({ success: true });
 });
 
 // Handle the /signout endpoint
 app.get("/signout", (req, res) => {
-
-    //
-    // Deleting req.session.user
-    //
-
-    // Delete the session information
     if (req.session.user) {
         delete req.session.user;
     }
-
-    //
-    // Sending a success response
-    //
-
     res.json({ success: true });
 });
 
@@ -182,6 +177,10 @@ io.engine.use(gameSession);
 io.use((socket, next) => {
     const user = socket.request.session && socket.request.session.user;
     if (!user) { next(new Error("Not signed in")); return; }
+    // Players who have not finished the How to Play guide cannot enter the lobby
+    const users = loadUsers();
+    if (!Object.hasOwn(users, user.username)) { next(new Error("Not signed in")); return; }
+    if (needsGuide(users, user.username)) { next(new Error("Please finish the How to Play guide first.")); return; }
     socket.data.user = user;
     next();
 });

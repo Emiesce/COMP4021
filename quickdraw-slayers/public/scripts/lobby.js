@@ -2,7 +2,7 @@
 // Owns the single Socket.IO connection; Game (game.js) borrows it.
 const Lobby = (function() {
     let socket = null;
-    let me = null;          // {username, name, avatar} filled from the first room:update
+    let me = null;          // {username, name} filled from the first room:update
     const views = ["#lobby-view", "#room-view", "#game-view"];
     const show = (id) => { views.forEach(v => $(v).toggle(v === id)); };
 
@@ -36,7 +36,7 @@ const Lobby = (function() {
                 if (p) {
                     const mine = me && p.username === me.username;
                     $s.addClass("filled").toggleClass("ready", p.ready)
-                        .append($("<div>").html(Avatar.getCode(p.avatar)),
+                        .append($("<div class='initial'>").text(p.name.charAt(0).toUpperCase()),
                                 $("<div>").text(p.name + (mine ? " (you)" : "")),
                                 $("<div>").text(p.ready ? "READY" : "not ready"));
                     if (mine) $("#ready-button").text(p.ready ? "Cancel Ready" : "Ready");

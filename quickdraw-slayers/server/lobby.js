@@ -13,7 +13,7 @@
 //   rooms:request         ask for the open-room list again
 // Socket.IO events (server -> client):
 //   rooms:list [{id,name,count,max}]
-//   room:update {id,name,status,players:[{username,name,avatar,ready}]}
+//   room:update {id,name,status,players:[{username,name,ready}]}
 //   room:countdown {seconds} / room:countdown_cancel
 //   room:left / room:error "message"
 //   game:start {roomId, players}   (the game page is blank for now; see server/game.js)
@@ -34,7 +34,7 @@ module.exports = function(io) {
 
     const roomInfo = (room) => ({
         id: room.id, name: room.name, status: room.status,
-        players: room.players.map(p => ({ username: p.username, name: p.name, avatar: p.avatar, ready: p.ready }))
+        players: room.players.map(p => ({ username: p.username, name: p.name, ready: p.ready }))
     });
 
     const listRooms = () => [...rooms.values()]
@@ -71,7 +71,7 @@ module.exports = function(io) {
         socket.join(room.id);
         socket.data.roomId = room.id;
         userRoom.set(user.username, room.id);
-        room.players.push({ socketId: socket.id, username: user.username, name: user.name, avatar: user.avatar, ready: false });
+        room.players.push({ socketId: socket.id, username: user.username, name: user.name, ready: false });
         sendRoom(room);
         sendRooms();
     };
@@ -127,7 +127,7 @@ module.exports = function(io) {
         sendRooms();
         io.to(room.id).emit("game:start", {
             roomId: room.id,
-            players: room.players.map(p => ({ username: p.username, name: p.name, avatar: p.avatar }))
+            players: room.players.map(p => ({ username: p.username, name: p.name }))
         });
         room.game = Game.create(io, room, () => {
             // TODO: game over handling
