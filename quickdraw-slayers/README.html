@@ -8,16 +8,21 @@
   <li><code>node game_server.js</code></li>
   <li>Open <a href="http://localhost:8000">http://localhost:8000</a> in two browsers (or one normal + one private window).</li>
 </ol>
-<p>Seed accounts: <b>tony / t</b> and <b>may / m</b>. Or register new ones.</p>
+<p>Register an account, read the How to Play guide, then sign in.</p>
 <h2>Files</h2>
 <ul>
-  <li><b>game_server.js</b> - Express, sessions, register/signin/validate/signout, Socket.IO (shares the login session)</li>
-  <li><b>server/lobby.js</b> - rooms, pairing, ready, countdown, rematch (all per room)</li>
+  <li><b>game_server.js</b> - Express, sessions, register / sign in / validate / guide-complete / sign out, sign-in limits, Socket.IO (shares the login session)</li>
+  <li><b>server/store.js</b> - data files (creates them if missing, atomic writes)</li>
+  <li><b>server/ratelimit.js</b> - "too many failed attempts" limiter</li>
+  <li><b>server/lobby.js</b> - rooms, pairing, ready, countdown, rejoin after a refresh (event list at the top of the file)</li>
   <li><b>server/game.js</b> - game logic for one room (empty for now)</li>
-  <li><b>public/</b> - index.html, style.css, scripts/ (lobby.js, game.js, plus the lab modules)</li>
+  <li><b>public/</b> - index.html, style.css, scripts/ (game_room.js accounts, howto.js guide, lobby.js lobby, game.js game page)</li>
+  <li><b>test/platform.test.js</b> - automated checks for accounts, sessions, rooms and rejoin</li>
 </ul>
-<h2>Socket.IO events</h2>
-<p>The full list is in the comments at the top of <code>server/lobby.js</code>.</p>
+<h2>Accounts</h2>
+<p>Accounts are stored in <code>data/users.json</code> (passwords hashed with argon2). The file is created automatically if it is missing.</p>
+<h2>Tests</h2>
+<p><code>npm test</code> starts a separate server on port 8123 with a temporary data folder and prints PASS / FAIL lines.</p>
 <h2>Credits</h2>
 <p>Infrastructure adapted from COMP4021 Labs 5 (accounts) and 6 (Socket.IO lobby). Game design, rules and code for the card battle are our own.</p>
 </body></html>

@@ -35,7 +35,7 @@
             <form id="register-form" class="col" autocomplete="on">
                 <div class="subtitle">Register</div>
                 <input id="register-username" maxlength="16" placeholder="Username (max 16: letters, numbers, _)" autocomplete="username" autocapitalize="none" spellcheck="false">
-                <input id="register-name" maxlength="20" placeholder="Display name" autocomplete="nickname">
+                <input id="register-name" maxlength="20" placeholder="Name" autocomplete="nickname">
                 <div class="password-field">
                     <input id="register-password" type="password" placeholder="Password" autocomplete="new-password">
                     <button type="button" class="toggle-password" aria-label="Show password">Show</button>
@@ -161,6 +161,7 @@
             <div id="room-name" class="subtitle"></div>
             <div class="row" id="room-slots"></div>
             <div id="room-message" class="message"></div>
+            <div id="room-notice" class="message" role="status"></div>
             <div id="countdown"></div>
             <div class="row">
                 <button id="ready-button">Ready</button>

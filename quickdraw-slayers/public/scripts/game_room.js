@@ -58,6 +58,20 @@ const GameRoom = (function() {
             .catch(() => HowTo.open(finishGuide, true));     // network problem: show the guide again
     };
 
+    // The session ended without the player pressing Sign Out (expired, signed out in another tab, replaced
+    // by another tab): go to the sign-in page and say why
+    const sessionEnded = function(message) {
+        if (!user) return;                                  // already signed out here
+        user = null;
+        if (hooks.onSignOut) hooks.onSignOut();             // disconnects the lobby
+        HowTo.dismiss();                                    // close the guide if it is open
+        $("#game-room-content-page, #game-room-start-page, #game-room-register-page").hide();
+        $("#game-room-signin-page").show();
+        $("#signin-form").get(0).reset();
+        showMessage("#signin-message", message, true);
+        $("#signin-username").focus();
+    };
+
     // Show the sign-in page (used after a new player has read How to Play), username filled in
     const goToSignIn = function(username) {
         $("#game-room-register-page").hide();
@@ -238,5 +252,5 @@ const GameRoom = (function() {
             .catch((err) => console.log(err));
     };
 
-    return { init, validate, hooks };
+    return { init, validate, hooks, sessionEnded };
 })();

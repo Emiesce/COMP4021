@@ -55,6 +55,13 @@ const HowTo = (function() {
         if (callback) callback();
     };
 
+    // Hide the guide without running its "after close" action (used when the session ends)
+    const dismiss = function() {
+        afterClose = null;
+        $("#howto-page").hide();
+        $("#help-button").show();
+    };
+
     const init = function() {
         const $steps = $(".howto-step");
         total = $steps.length;
@@ -87,5 +94,5 @@ const HowTo = (function() {
         $("#help-button").on("click", () => open(null, false));
     };
 
-    return { init, open };
+    return { init, open, dismiss };
 })();
