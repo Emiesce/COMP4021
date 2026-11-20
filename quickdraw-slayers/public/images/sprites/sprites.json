@@ -1,0 +1,257 @@
+{
+  "grade_farmer": {
+    "frameSize": 240,
+    "facing": "right",
+    "sequences": {
+      "idle": {
+        "x": 0,
+        "y": 0,
+        "width": 240,
+        "height": 240,
+        "count": 4,
+        "timing": 180,
+        "loop": true
+      },
+      "attack": {
+        "x": 0,
+        "y": 240,
+        "width": 240,
+        "height": 240,
+        "count": 4,
+        "timing": 90,
+        "loop": false
+      },
+      "hurt": {
+        "x": 0,
+        "y": 480,
+        "width": 240,
+        "height": 240,
+        "count": 2,
+        "timing": 110,
+        "loop": false
+      },
+      "block": {
+        "x": 0,
+        "y": 720,
+        "width": 240,
+        "height": 240,
+        "count": 2,
+        "timing": 140,
+        "loop": true
+      },
+      "defeated": {
+        "x": 0,
+        "y": 960,
+        "width": 240,
+        "height": 240,
+        "count": 4,
+        "timing": 140,
+        "loop": false
+      }
+    }
+  },
+  "deadline_fighter": {
+    "frameSize": 240,
+    "facing": "right",
+    "sequences": {
+      "idle": {
+        "x": 0,
+        "y": 0,
+        "width": 240,
+        "height": 240,
+        "count": 4,
+        "timing": 180,
+        "loop": true
+      },
+      "attack": {
+        "x": 0,
+        "y": 240,
+        "width": 240,
+        "height": 240,
+        "count": 4,
+        "timing": 90,
+        "loop": false
+      },
+      "hurt": {
+        "x": 0,
+        "y": 480,
+        "width": 240,
+        "height": 240,
+        "count": 2,
+        "timing": 110,
+        "loop": false
+      },
+      "block": {
+        "x": 0,
+        "y": 720,
+        "width": 240,
+        "height": 240,
+        "count": 2,
+        "timing": 140,
+        "loop": true
+      },
+      "defeated": {
+        "x": 0,
+        "y": 960,
+        "width": 240,
+        "height": 240,
+        "count": 4,
+        "timing": 140,
+        "loop": false
+      }
+    }
+  },
+  "enemy_typhoon": {
+    "frameSize": 360,
+    "facing": "left",
+    "sequences": {
+      "idle": {
+        "x": 0,
+        "y": 0,
+        "width": 360,
+        "height": 360,
+        "count": 4,
+        "timing": 180,
+        "loop": true
+      },
+      "attack": {
+        "x": 0,
+        "y": 360,
+        "width": 360,
+        "height": 360,
+        "count": 4,
+        "timing": 90,
+        "loop": false
+      },
+      "hurt": {
+        "x": 0,
+        "y": 720,
+        "width": 360,
+        "height": 360,
+        "count": 2,
+        "timing": 110,
+        "loop": false
+      },
+      "charge": {
+        "x": 0,
+        "y": 1080,
+        "width": 360,
+        "height": 360,
+        "count": 2,
+        "timing": 160,
+        "loop": true
+      },
+      "defeated": {
+        "x": 0,
+        "y": 1440,
+        "width": 360,
+        "height": 360,
+        "count": 4,
+        "timing": 140,
+        "loop": false
+      }
+    }
+  },
+  "enemy_firebird": {
+    "frameSize": 360,
+    "facing": "left",
+    "sequences": {
+      "idle": {
+        "x": 0,
+        "y": 0,
+        "width": 360,
+        "height": 360,
+        "count": 4,
+        "timing": 180,
+        "loop": true
+      },
+      "attack": {
+        "x": 0,
+        "y": 360,
+        "width": 360,
+        "height": 360,
+        "count": 4,
+        "timing": 90,
+        "loop": false
+      },
+      "hurt": {
+        "x": 0,
+        "y": 720,
+        "width": 360,
+        "height": 360,
+        "count": 2,
+        "timing": 110,
+        "loop": false
+      },
+      "charge": {
+        "x": 0,
+        "y": 1080,
+        "width": 360,
+        "height": 360,
+        "count": 2,
+        "timing": 160,
+        "loop": true
+      },
+      "defeated": {
+        "x": 0,
+        "y": 1440,
+        "width": 360,
+        "height": 360,
+        "count": 4,
+        "timing": 140,
+        "loop": false
+      }
+    }
+  },
+  "enemy_dragon": {
+    "frameSize": 360,
+    "facing": "left",
+    "sequences": {
+      "idle": {
+        "x": 0,
+        "y": 0,
+        "width": 360,
+        "height": 360,
+        "count": 4,
+        "timing": 180,
+        "loop": true
+      },
+      "attack": {
+        "x": 0,
+        "y": 360,
+        "width": 360,
+        "height": 360,
+        "count": 4,
+        "timing": 90,
+        "loop": false
+      },
+      "hurt": {
+        "x": 0,
+        "y": 720,
+        "width": 360,
+        "height": 360,
+        "count": 2,
+        "timing": 110,
+        "loop": false
+      },
+      "charge": {
+        "x": 0,
+        "y": 1080,
+        "width": 360,
+        "height": 360,
+        "count": 2,
+        "timing": 160,
+        "loop": true
+      },
+      "defeated": {
+        "x": 0,
+        "y": 1440,
+        "width": 360,
+        "height": 360,
+        "count": 4,
+        "timing": 140,
+        "loop": false
+      }
+    }
+  }
+}
