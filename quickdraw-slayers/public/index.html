@@ -94,8 +94,8 @@
             </section>
             <section class="howto-step" data-shot="03-energy">
                 <h3>3. Energy</h3>
-                <p>Cards cost Energy. Your Energy bar refills by 1 every 2.5 seconds. The bar holds 3 on floor 1, 4 on floor 2
-                and 5 on floor 3, so spend it before it is full.</p>
+                <p>Cards cost Energy. In solo, your Energy bar refills by 1 every 1.8 seconds. The bar holds 4 on floor 1,
+                5 on floor 2 and 6 on floor 3, so you can keep pressure on the enemy.</p>
             </section>
             <section class="howto-step" data-shot="04-enemy-timer">
                 <h3>4. Enemy attack timer</h3>
@@ -119,8 +119,8 @@
             </section>
             <section class="howto-step" data-shot="08-down">
                 <h3>8. If you go down</h3>
-                <p>If your HP reaches 0 while your partner is alive, you spectate. If your partner clears the floor you are revived
-                for the next one. If both Slayers fall, or time runs out, it is Defeat.</p>
+                <p>In solo, reaching 0 HP is Defeat. In multiplayer, a downed Slayer spectates while their partner fights; clearing
+                the floor revives them. If both Slayers fall, or time runs out, it is Defeat.</p>
             </section>
             <section class="howto-step" data-shot="09-cheat">
                 <h3>9. Cheat mode</h3>
@@ -149,6 +149,7 @@
         <div id="lobby-view" class="col">
             <div class="subtitle">Lobby</div>
             <div class="row">
+                <button id="solo-button">Play Solo</button>
                 <button id="quick-button">Quick Match</button>
                 <button id="create-button">Create Room</button>
             </div>
@@ -169,9 +170,69 @@
             </div>
         </div>
 
-        <!-- Game: intentionally blank for now (game logic comes later) -->
+        <!-- Playable local prototype; multiplayer transport is intentionally deferred. -->
         <div id="game-view" style="display: none">
-            <canvas id="game-canvas" width="960" height="540"></canvas>  <!-- TODO: game rendering -->
+            <div class="battlefield-shell">
+                <div class="canvas-frame">
+                    <canvas id="game-canvas" width="960" height="540" aria-label="QuickDraw Slayers battle"></canvas>
+
+                    <div class="battle-top-hud">
+                        <aside class="fighter-hud" id="player-hud-0" aria-label="Slayer status">
+                            <div class="fighter-heading">
+                                <img src="/images/sprites/grade_farmer.png" alt="">
+                                <div><span class="eyebrow">YOUR SLAYER</span><strong id="player-name-0">Grade Farmer</strong></div>
+                            </div>
+                            <div class="meter-row"><span>HP</span><div class="meter hp-meter"><i id="player-hp-0"></i></div><strong id="player-hp-text-0">100 / 100</strong></div>
+                            <div class="meter-row shield-row"><span>BLOCK</span><div class="meter shield-meter"><i id="player-shield-0"></i></div><strong id="player-shield-text-0">0</strong></div>
+                            <div class="energy-row">
+                                <span>ENERGY</span>
+                                <div class="energy-pips" id="player-energy-0" aria-label="Energy"></div>
+                                <strong id="player-energy-text-0">3 / 3</strong>
+                            </div>
+                            <div class="status-strip player-status-strip" id="player-status-0"></div>
+                        </aside>
+
+                        <div class="master-clock" id="master-clock" aria-label="Floor and time remaining">
+                            <span class="eyebrow">FLOOR <span id="floor-number">1</span> OF 3</span>
+                            <strong id="master-clock-value">04:00</strong>
+                            <span class="prototype-chip">SOLO RUN</span>
+                        </div>
+
+                        <div class="enemy-hud">
+                            <div class="enemy-title-row">
+                                <span class="enemy-floor-label" id="enemy-variant">VARIANT I</span>
+                                <strong id="enemy-name">Campus Typhoon</strong>
+                                <span id="enemy-hp-text">180 / 180</span>
+                            </div>
+                            <div class="meter enemy-hp-meter"><i id="enemy-hp"></i></div>
+                            <div class="enemy-attack-row">
+                                <span id="enemy-intent">Charging Gust</span>
+                                <strong id="enemy-countdown">5.0s</strong>
+                            </div>
+                            <div class="meter attack-meter"><i id="enemy-attack-timer"></i></div>
+                            <div class="status-strip" id="enemy-statuses"></div>
+                        </div>
+                    </div>
+
+                    <button id="sound-toggle" class="icon-button sound-control" type="button" aria-label="Mute game sounds">Sound on</button>
+                    <div class="combo-callout" id="combo-callout" aria-live="polite"></div>
+                    <div class="battle-feed" id="battle-feed" aria-live="polite"></div>
+                    <div class="cheat-badge" id="cheat-badge">CHEAT MODE ACTIVE</div>
+
+                    <section class="hand-zone" id="hand-zone-0" aria-label="Your hand">
+                        <div class="card-hand" id="card-hand-0"></div>
+                    </section>
+                    <div class="deck-counter" id="deck-counter" aria-label="Cards remaining in deck">
+                        <span class="deck-stack" aria-hidden="true"></span>
+                        <strong id="deck-count">16</strong>
+                        <small>DECK</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="game-overlay" id="game-overlay" hidden>
+                <div class="game-overlay-card" id="game-overlay-card"></div>
+            </div>
         </div>
     </div>
 </div>
