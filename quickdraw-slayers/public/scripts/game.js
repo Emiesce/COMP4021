@@ -5,6 +5,9 @@ const Game = (function() {
 
     const WORLD_WIDTH = 960;
     const WORLD_HEIGHT = 540;
+    // The background image is 16:9, same as the canvas. Lift it so the courtyard meets the sprites,
+    // and stretch the bottom edge to cover the strip that lift uncovers.
+    const BACKGROUND_SHIFT = 96;
     const MASTER_TIME_MS = 240000;
     const ENERGY_INTERVAL_MS = 1800;
     const REWARD_TIME_MS = 5000;
@@ -244,8 +247,9 @@ const Game = (function() {
         const template = state.enemyOrder[state.floor - 1];
         state.enemy = {
             ...template,
-            x: 650,
-            y: 174,
+            // adjust enemy height
+            x: 640,
+            y: 160,
             scale: 0.74,
             maxHp: Math.round(FLOOR_HEALTH[state.floor - 1] * FLOOR_HEALTH_VARIANCE[state.floor - 1]),
             hp: 0,
@@ -929,7 +933,18 @@ const Game = (function() {
         const scale = Math.max(WORLD_WIDTH / image.width, WORLD_HEIGHT / image.height);
         const width = image.width * scale;
         const height = image.height * scale;
-        context.drawImage(image, (WORLD_WIDTH - width) / 2, (WORLD_HEIGHT - height) / 2, width, height);
+        const x = (WORLD_WIDTH - width) / 2;
+        const y = (WORLD_HEIGHT - height) / 2 - BACKGROUND_SHIFT;
+        context.drawImage(image, x, y, width, height);
+        const bottom = y + height;
+        if (bottom < WORLD_HEIGHT) {
+            const slice = Math.max(1, Math.round(image.height * 0.012));
+            context.drawImage(
+                image,
+                0, image.height - slice, image.width, slice,
+                x, bottom - 1, width, WORLD_HEIGHT - bottom + 1
+            );
+        }
     }
 
     function drawBackdrop(now) {
@@ -967,6 +982,24 @@ const Game = (function() {
         return { sprite, frame, sequence };
     }
 
+    function drawGroundShadow(entity, width, height) {
+        const centerX = entity.x + width * 0.53;    // adjust where the shadow sits (horizontal)
+        const centerY = entity.y + height * 0.98;   // vertical
+        const radiusX = width * 0.42;
+        const radiusY = width * 0.12;
+        context.save();
+        context.globalAlpha = entity.hp <= 0 ? 0.35 : 1;
+        const gradient = context.createRadialGradient(centerX, centerY, radiusY * 0.15, centerX, centerY, radiusX);
+        gradient.addColorStop(0, "rgba(126, 126, 126, 0.72)");  // adjust shadow color here
+        gradient.addColorStop(0.45, "rgba(167, 165, 165, 0.4)");
+        gradient.addColorStop(1, "rgba(235, 235, 235, 0)");
+        context.fillStyle = gradient;
+        context.beginPath();
+        context.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+    }
+
     function drawEntity(entity, key, now, width) {
         const metadata = assets.metadata && assets.metadata[key];
         const sequence = metadata && metadata.sequences[entity.animation.name];
@@ -980,6 +1013,7 @@ const Game = (function() {
             const height = width * (sequence.height / sequence.width);
             const sourceX = sequence.x + resolved.frame * sequence.width;
             const bob = entity.animation.name === "idle" ? Math.sin(now / 230 + entity.x) * 2.2 : 0;
+            drawGroundShadow(entity, width, height);
             context.save();
             if (entity.hp <= 0) context.globalAlpha = 0.55;
             context.shadowColor = "rgba(0, 0, 0, 0.55)";
@@ -991,6 +1025,7 @@ const Game = (function() {
             return;
         }
 
+        drawGroundShadow(entity, width, width);
         context.save();
         context.fillStyle = key.indexOf("enemy") === 0 ? "#b85d77" : "#775ca7";
         context.beginPath();
