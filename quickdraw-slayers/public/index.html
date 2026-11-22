@@ -20,7 +20,7 @@
                 <span class="landing-slayers">SLAYERS</span>
             </h1>
             <p class="landing-lead"><b>A real-time 2-player co-op card battle.</b> There are no turns: both players act at the same time and every card takes effect the moment it is played.</p>
-            <p class="landing-lead">Defeat the enemy on every floor before the 4:00 master timer runs out. Click a card or press 1-4 to play it. Press the green "?" button for the full guide.</p>
+            <p class="landing-lead">Defeat the enemy on every floor before the 4:00 master timer runs out. Click a card or press 1-4 to play it. Press the yellow "?" button for the full guide.</p>
             <div class="landing-pills">
                 <span>2-PLAYER CO-OP</span>
                 <span>REAL-TIME CARDS</span>
@@ -69,60 +69,162 @@
         </div>
     </div>
 
-    <!-- How to play page: screenshots/GIFs live in public/images/howto/ (see scripts/howto.js) -->
+    <!-- How to play pop-up. Three groups of pages: basics (required for new players), cards, enemies.
+         Screenshots/GIFs for the basics live in public/images/howto/ (see scripts/howto.js).
+         The card and enemy pages are built from the game's own card and enemy lists. -->
     <div id="howto-page" style="display: none" role="dialog" aria-modal="true" aria-label="How to Play">
         <div class="howto-wrap">
-            <div class="subtitle">How to Play</div>
             <button class="howto-back" type="button" aria-label="Close">&times;</button>
+            <div class="howto-title">HOW TO PLAY</div>
             <div id="howto-required-note">New Slayer? Please go through all the steps before you sign in.</div>
-            <div id="howto-progress">Step <span id="howto-current">1</span> of <span id="howto-total"></span></div>
+            <div id="howto-tabs" role="tablist">
+                <button type="button" class="howto-tab" data-group="basics" role="tab">BASICS</button>
+                <button type="button" class="howto-tab" data-group="cards" role="tab">CARDS</button>
+                <button type="button" class="howto-tab" data-group="enemies" role="tab">ENEMIES</button>
+            </div>
+            <div id="howto-progress">Page <span id="howto-current">1</span> of <span id="howto-total"></span></div>
             <div id="howto-slides">
 
-            <section class="howto-step" data-shot="01-goal">
+            <section class="howto-step" data-group="basics" data-shot="01-goal">
                 <h3>1. The goal</h3>
-                <p>Two Slayers fight together in real time. There are no turns: both of you act at the same time and every
-                card takes effect the moment it is played. Defeat the enemy on all 3 floors before the 4:00 master timer
-                reaches 0.</p>
+                <p>You and a partner are <b>Slayers</b> fighting exam monsters. Beat the monster on each of the <b>3 floors</b>
+                before the <b>4:00 timer</b> at the top of the screen runs out. Clear all 3 floors and you win!</p>
+                <p>It is <b>real time</b>: there are no turns. You and your partner both play cards whenever you like.</p>
+                <div class="terms">
+                    <span><b>HP</b> your health</span>
+                    <span><b>Energy</b> fuel for cards</span>
+                    <span><b>Shield</b> temporary armor</span>
+                    <span><b>Floor</b> one level</span>
+                </div>
             </section>
-            <section class="howto-step" data-shot="02-play-card">
+            <section class="howto-step" data-group="basics" data-shot="02-play-card">
                 <h3>2. Play a card</h3>
-                <p>You hold 4 cards. Click a card, or press <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>, to play it
-                instantly. A new card is drawn to replace it.</p>
+                <p>You always hold <b>4 cards</b> at the bottom of the screen. To use one, <b>click it</b> or press
+                <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>. It works instantly, and a new card is drawn to replace it.</p>
+                <p>Each card shows its <b>Energy cost</b> and its type: <b>Attack</b> hurts the enemy, <b>Block</b> protects you,
+                <b>Utility</b> does something special.</p>
             </section>
-            <section class="howto-step" data-shot="03-energy">
+            <section class="howto-step" data-group="basics" data-shot="03-energy">
                 <h3>3. Energy</h3>
-                <p>Cards cost Energy. In solo, your Energy bar refills by 1 every 1.8 seconds. The bar holds 4 on floor 1,
-                5 on floor 2 and 6 on floor 3, so you can keep pressure on the enemy.</p>
+                <p>Cards cost <b>Energy</b>, the blue pips at the bottom left. If you do not have enough, the card is greyed out.</p>
+                <p>Energy fills back up by itself, <b>1 every 1.8 seconds</b>. The bar holds 4 on floor 1, 5 on floor 2 and
+                6 on floor 3. You start every floor with a <b>full</b> bar.</p>
+                <p class="help-tip">Tip: do not sit on a full bar. Energy that overflows is wasted, so keep playing cards.</p>
             </section>
-            <section class="howto-step" data-shot="04-enemy-timer">
-                <h3>4. Enemy attack timer</h3>
-                <p>Every enemy telegraphs its next attack with a countdown bar of fixed length. When the bar empties the attack
-                fires at the Slayers, so block or kill the enemy before then.</p>
+            <section class="howto-step" data-group="basics" data-shot="04-enemy-timer">
+                <h3>4. The enemy attack timer</h3>
+                <p>Under the enemy's name there is a <b>red bar that counts down</b>. When it reaches zero the enemy attacks you,
+                and then the bar starts again. A full bar takes about <b>6 seconds</b> (a little less on later floors).</p>
+                <p>So you have two choices before it runs out: <b>defeat the enemy</b>, or <b>block</b> the hit.</p>
             </section>
-            <section class="howto-step" data-shot="05-block">
-                <h3>5. Defend</h3>
-                <p>Block cards fill your Shield meter. Shield soaks incoming damage before your HP does, so time your block for
-                just before the enemy timer runs out.</p>
+            <section class="howto-step" data-group="basics" data-shot="05-block">
+                <h3>5. Defend yourself</h3>
+                <p>You start with <b>100 HP</b>. If it reaches 0, you are down.</p>
+                <p><b>Block cards</b> give you <b>Shield</b> (up to 60). Shield takes the damage <b>before your HP does</b>.
+                The best moment to block is just before the red timer runs out.</p>
             </section>
-            <section class="howto-step" data-shot="06-combo">
-                <h3>6. Team combos</h3>
-                <p>Work together: one Slayer applies a debuff and the partner follows with a big attack, or one shields while the
-                other attacks.</p>
+            <section class="howto-step" data-group="basics" data-shot="06-combo">
+                <h3>6. Team up</h3>
+                <p>You and your partner both hit the same enemy, so help each other. For example: one of you plays
+                <b>Bell Curve</b> so the enemy takes extra damage, and the other follows with a big attack.</p>
+                <p>See the <b>Cards</b> tab (the <b>?</b> button) for every combo.</p>
             </section>
-            <section class="howto-step" data-shot="07-rewards">
+            <section class="howto-step" data-group="basics" data-shot="07-rewards">
                 <h3>7. Between floors</h3>
-                <p>After floors 1 and 2 you get a 5-second overlay to choose a new card, a buff or a heal. The master timer is
-                paused while you choose.</p>
+                <p>After floor 1 and floor 2, a <b>reward screen</b> appears for 5 seconds. Pick one:</p>
+                <ul class="help-list">
+                    <li><b>New card:</b> a random card that costs 2 or more replaces the cheapest card in your hand.</li>
+                    <li><b>Buff:</b> +12% damage for the rest of the run, and +10 max HP.</li>
+                    <li><b>Heal:</b> recover 40 HP.</li>
+                </ul>
+                <p>The main timer <b>pauses</b> while you choose, so take your time.</p>
             </section>
-            <section class="howto-step" data-shot="08-down">
+            <section class="howto-step" data-group="basics" data-shot="08-down">
                 <h3>8. If you go down</h3>
-                <p>In solo, reaching 0 HP is Defeat. In multiplayer, a downed Slayer spectates while their partner fights; clearing
-                the floor revives them. If both Slayers fall, or time runs out, it is Defeat.</p>
+                <p><b>Playing solo:</b> if your HP reaches 0, the run is over (Defeat).</p>
+                <p><b>Playing with a partner:</b> a downed Slayer watches while their partner keeps fighting. Clear the floor and
+                they come back! If <b>both</b> Slayers fall, or the timer reaches 0, it is Defeat.</p>
             </section>
-            <section class="howto-step" data-shot="09-cheat">
+            <section class="howto-step" data-group="basics" data-shot="09-cheat">
                 <h3>9. Cheat mode</h3>
-                <p>Press <kbd>C</kbd> to switch cheat mode on or off for yourself: infinite Energy, no damage taken and 3x damage.
-                A "CHEAT MODE ACTIVE" label shows at the top left and your partner is notified.</p>
+                <p>Want to test the game? Press <kbd>C</kbd> to turn <b>cheat mode</b> on or off for yourself. You get unlimited
+                Energy, take no damage, and deal triple damage.</p>
+                <p>A <b>"CHEAT MODE ACTIVE"</b> label shows at the top left, and your partner is told you are using it.</p>
+            </section>
+
+            <!-- CARDS: the grids are filled in by howto.js from the game's card list -->
+            <section class="howto-step" data-group="cards" data-cards="ATTACK">
+                <h3>Attack cards</h3>
+                <p>Attack cards <b>hurt the enemy</b>. Cheap ones are quick but weak, expensive ones hit hard. When your Energy is low, a cheap card now beats waiting for a big one.</p>
+                <div class="help-cards"></div>
+            </section>
+            <section class="howto-step" data-group="cards" data-cards="BLOCK">
+                <h3>Block cards</h3>
+                <p>Block cards give you <b>Shield</b>, a layer of armor (max 60) that takes the enemy's hit before your HP does. Play one just before the red attack timer runs out.</p>
+                <div class="help-cards"></div>
+            </section>
+            <section class="howto-step" data-group="cards" data-cards="UTILITY">
+                <h3>Utility cards</h3>
+                <p>Utility cards <b>help in other ways</b>: weaken the enemy, heal you, or give Energy. Group Project and Bell Curve also start a combo (see the next page).</p>
+                <div class="help-cards"></div>
+            </section>
+            <section class="howto-step combo-page" data-group="cards">
+                <h3>Combos</h3>
+                <p>A <b>combo</b> is when good timing makes your cards stronger. Your partner can start one and you can finish it. Here are the four tricks:</p>
+                <div class="combo-grid">
+
+                    <div class="combo-tile" style="--c:#e7b53a">
+                        <div class="combo-name">1 &middot; Setup &rarr; Strike</div>
+                        <div class="combo-flow">
+                            <img class="mini" src="/images/cards/group_project.jpg" alt="Group Project">
+                            <span class="plus">or</span>
+                            <img class="mini" src="/images/cards/bell_curve.jpg" alt="Bell Curve">
+                            <span class="arrow">&rarr;<small>within 2 s</small></span>
+                            <img class="mini" src="/images/cards/final_exam.jpg" alt="Final Exam">
+                            <span class="badge gold">+25%</span>
+                        </div>
+                        <p>Play <b>Group Project</b> or <b>Bell Curve</b> first. Then hit with <b>any attack within 2 seconds</b> for 25% extra damage.</p>
+                    </div>
+
+                    <div class="combo-tile" style="--c:#d989ff">
+                        <div class="combo-name">2 &middot; Bell Curve window</div>
+                        <div class="bars">
+                            <div class="bar-row"><span>Final Exam</span><div class="bar"><i style="width:54%"></i></div><b>54</b></div>
+                            <div class="bar-row"><span>+ Bell Curve</span><div class="bar"><i class="purple" style="width:78%"></i></div><b>78</b></div>
+                            <div class="bar-row"><span>+ Setup combo</span><div class="bar"><i class="gold" style="width:98%"></i></div><b>98</b></div>
+                        </div>
+                        <p>For <b>8 seconds</b> the enemy takes 45% more damage. The same Final Exam does 54, then 78, then 98 when you also get the setup bonus.</p>
+                    </div>
+
+                    <div class="combo-tile" style="--c:#b888ff">
+                        <div class="combo-name">3 &middot; Group Project</div>
+                        <div class="bars">
+                            <div class="bar-row"><span>Enemy hit</span><div class="bar"><i class="red" style="width:100%"></i></div><b>20</b></div>
+                            <div class="bar-row"><span>Weakened</span><div class="bar"><i class="red dim" style="width:65%"></i></div><b>13</b></div>
+                            <div class="bar-row"><span>Weakened</span><div class="bar"><i class="red dim" style="width:65%"></i></div><b>13</b></div>
+                        </div>
+                        <p>The enemy's <b>next 2 attacks</b> are 35% weaker (a 20-damage hit becomes 13). A safe time to go all in.</p>
+                    </div>
+
+                    <div class="combo-tile" style="--c:#63dcff">
+                        <div class="combo-name">4 &middot; Shield soaks first</div>
+                        <div class="soak">
+                            <div class="soak-bar"><i class="shield" style="width:80%">24 Shield</i><i class="hp" style="width:20%">6</i></div>
+                            <div class="soak-label">A 30-damage hit: Shield takes 24, you lose only 6 HP</div>
+                        </div>
+                        <p>Shield always takes damage first. One Slayer can block while the other keeps attacking. <b>Extension</b> gives +2 Energy to <b>both</b> of you.</p>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- ENEMIES -->
+            <section class="howto-step" data-group="enemies">
+                <h3>The three bosses</h3>
+                <p>One monster guards each floor. You meet <b>all three</b> every run, in a random order. They get stronger as you climb:
+                floor 1 has <b id="help-hp-1"></b> HP, floor 2 <b id="help-hp-2"></b> and floor 3 <b id="help-hp-3"></b>, and every attack hits <b>7 harder</b> on each new floor.</p>
+                <div class="help-enemies"></div>
+                <p class="help-tip">Tip: watch the red bar under the monster's name. When it empties, the attack lands, so block or finish it first.</p>
             </section>
             </div>
             <div id="howto-dots"></div>
@@ -136,34 +238,61 @@
     <!-- Signed-in area: lobby, room, game -->
     <div id="game-room-content-page" style="display: none">
         <div class="topbar">
-            <span>Hello <span id="game-room-user-name"></span>!</span>
+            <span class="topbar-brand"><span>QUICKDRAW</span> SLAYERS</span>
+            <span class="topbar-user"><span class="topbar-initial" id="topbar-initial" aria-hidden="true"></span><span>Hello <span id="game-room-user-name"></span>!</span></span>
             <span class="topbar-buttons">
+                <button id="music-toggle" type="button" aria-label="Turn lobby music on or off">Sound on</button>
                 <form id="signout-form"><button id="signout-button" type="submit">Sign Out</button></form>
             </span>
         </div>
 
-        <!-- Lobby: open rooms -->
-        <div id="lobby-view" class="col">
-            <div class="subtitle">Lobby</div>
-            <div class="row">
-                <button id="solo-button">Play Solo</button>
-                <button id="quick-button">Quick Match</button>
-                <button id="create-button">Create Room</button>
+        <!-- Lobby: pick a run -->
+        <div id="lobby-view" class="lobby">
+            <div class="lobby-head">
+                <span class="eyebrow-gold">HKUST &middot; JOCKEY CLUB ATRIUM</span>
+                <h1 class="lobby-title">CHOOSE YOUR RUN</h1>
+                <p class="lobby-lead">Take on the exam monsters alone, or team up with a partner for co-op.</p>
+            </div>
+            <div class="lobby-grid">
+                <button id="solo-button" class="mode-card mode-solo" type="button">
+                    <span class="mode-tag">1 PLAYER</span>
+                    <span class="mode-name">Play Solo</span>
+                    <span class="mode-desc">Jump straight in. Three floors, three bosses, no waiting.</span>
+                    <span class="mode-go">START &rarr;</span>
+                </button>
+                <button id="create-button" class="mode-card mode-coop" type="button">
+                    <span class="mode-tag">2 PLAYERS &middot; CO-OP</span>
+                    <span class="mode-name">Create Room</span>
+                    <span class="mode-desc">Open a room and wait for a partner to join you.</span>
+                    <span class="mode-go">CREATE &rarr;</span>
+                </button>
+                <section class="rooms-panel" aria-label="Open rooms">
+                    <div class="rooms-head"><strong>OPEN ROOMS</strong><span id="rooms-count">0</span></div>
+                    <div id="rooms-list"></div>
+                </section>
+                <section class="rooms-panel leaderboard-panel" aria-label="Hall of Slayers">
+                    <div class="rooms-head"><strong>HALL OF SLAYERS</strong><span id="leaderboard-count">0</span></div>
+                    <div id="leaderboard-list"></div>
+                </section>
             </div>
             <div id="lobby-error" class="message"></div>
-            <div id="rooms-list" class="panel"></div>
         </div>
 
         <!-- Inside a room: two slots, ready, countdown -->
-        <div id="room-view" class="col" style="display: none">
-            <div id="room-name" class="subtitle"></div>
-            <div class="row" id="room-slots"></div>
-            <div id="room-message" class="message"></div>
-            <div id="room-notice" class="message" role="status"></div>
-            <div id="countdown"></div>
-            <div class="row">
-                <button id="ready-button">Ready</button>
-                <button id="leave-button">Leave Room</button>
+        <div id="room-view" class="lobby" style="display: none">
+            <div class="lobby-head">
+                <span class="eyebrow-gold">CO-OP ROOM</span>
+                <h1 id="room-name" class="lobby-title"></h1>
+            </div>
+            <div class="room-card">
+                <div class="row" id="room-slots"></div>
+                <div id="room-message" class="message"></div>
+                <div id="room-notice" class="message" role="status"></div>
+                <div id="countdown"></div>
+                <div class="row">
+                    <button id="ready-button" type="button">Ready</button>
+                    <button id="leave-button" type="button">Leave Room</button>
+                </div>
             </div>
         </div>
 
@@ -211,7 +340,6 @@
                         </div>
                     </div>
 
-                    <button id="sound-toggle" class="icon-button sound-control" type="button" aria-label="Mute game sounds">Sound on</button>
                     <div class="combo-callout" id="combo-callout" aria-live="polite"></div>
                     <div class="battle-feed" id="battle-feed" aria-live="polite"></div>
                     <div class="cheat-badge" id="cheat-badge">CHEAT MODE ACTIVE</div>
@@ -237,6 +365,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="scripts/game_room.js"></script>
 <script src="scripts/howto.js"></script>
+<script src="scripts/gameover.js"></script>
 <script src="scripts/lobby.js"></script>
 <script src="scripts/game.js"></script>
 <script>

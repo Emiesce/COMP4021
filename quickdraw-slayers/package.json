@@ -4,7 +4,7 @@
   "main": "game_server.js",
   "scripts": {
     "start": "node game_server.js",
-    "test": "node test/platform.test.js"
+    "test": "node test/leaderboard.test.js && node test/platform.test.js"
   },
   "dependencies": {
     "argon2": "^0.44.0",

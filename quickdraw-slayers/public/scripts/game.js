@@ -206,15 +206,21 @@ const Game = (function() {
             }
         },
 
+        // The mute setting is shared with the lobby music button (SoundSetting, defined in lobby.js)
+        syncMuted() {
+            this.muted = SoundSetting.muted;
+        },
+
         toggle() {
+            this.syncMuted();
             this.unlock();
             this.muted = !this.muted;
             if (this.game_music_1) {
                 if (this.muted) this.game_music_1.pause();
                 else this.game_music_1.play();
             }
-            byId("sound-toggle").textContent = this.muted ? "Sound off" : "Sound on";
-            byId("sound-toggle").setAttribute("aria-label", this.muted ? "Enable game sounds" : "Mute game sounds");
+            SoundSetting.muted = this.muted;
+            byId("music-toggle").textContent = this.muted ? "Sound off" : "Sound on";
         },
 
         stop() {
@@ -532,6 +538,7 @@ const Game = (function() {
 
         const blocked = Math.min(player.shield, incoming);
         player.shield -= blocked;
+        state.stats.blocked += blocked;                  // damage the Shield soaked up (shown on the game-over screen)
         const damage = incoming - blocked;
         player.hp = Math.max(0, player.hp - damage);
         const target = enemyTarget(player);
@@ -887,41 +894,34 @@ const Game = (function() {
         state.status = "over";
         state.projectiles = [];
         state.hazards = [];
-        const overlay = byId("game-overlay");
-        const card = byId("game-overlay-card");
-        card.replaceChildren();
-        const kicker = document.createElement("div");
-        kicker.className = "overlay-kicker";
-        kicker.textContent = won ? "DUNGEON CLEARED" : "RUN ENDED";
-        const title = document.createElement("h2");
-        title.textContent = won ? "VICTORY!" : "DEFEAT";
-        const copy = document.createElement("div");
-        copy.className = "overlay-copy";
-        copy.textContent = reason;
-        const stats = document.createElement("div");
-        stats.className = "result-stats";
-        [
-            [String(state.stats.floors), "Floors cleared"],
-            [String(state.stats.damage), "Damage dealt"],
-            [String(state.stats.cards), "Cards played"],
-            [formatTime(MASTER_TIME_MS - state.timeRemaining), "Active time"]
-        ].forEach(([value, label]) => {
-            const item = document.createElement("div");
-            const strong = document.createElement("strong");
-            strong.textContent = value;
-            item.append(strong, document.createTextNode(label));
-            stats.append(item);
+        const lived = MASTER_TIME_MS - state.timeRemaining;
+        const result = {
+            won,
+            reason,
+            floors: state.stats.floors,
+            durationMs: lived,
+            players: state.players.map(p => ({
+                name: p.name,
+                damage: Math.round(state.stats.damage),
+                blocked: Math.round(state.stats.blocked),
+                cards: state.stats.cards,
+                survivalMs: lived
+            }))
+        };
+        GameOver.show(result, {
+            // Solo: leave this room and start a fresh run straight away
+            onPlayAgain: () => {
+                stop();
+                if (socket && socket.connected) { socket.emit("room:leave"); socket.emit("lobby:solo"); }
+            },
+            onHome: () => {
+                stop();
+                if (socket && socket.connected) socket.emit("room:leave");
+            }
         });
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "result-button";
-        button.textContent = "Return to room";
-        button.addEventListener("click", () => {
-            stop();
-            if (socket && socket.connected) socket.emit("room:leave");
-        });
-        card.append(kicker, title, copy, stats, button);
-        overlay.hidden = false;
+        // TEMPORARY: the solo game still runs in the browser, so it reports its own result for the leaderboard.
+        // Once the server runs the game, delete this line: server/game.js passes the result to onOver(result).
+        if (socket && socket.connected) socket.emit("game:report", result);
         if (won) Audio.play("victory");
         renderHands();
     }
@@ -1257,7 +1257,8 @@ const Game = (function() {
     function bindListeners() {
         if (listenersBound) return;
         window.addEventListener("keydown", handleKeydown);
-        byId("sound-toggle").addEventListener("click", () => Audio.toggle());
+        // The sound button is the one in the top bar, shared with the lobby (lobby.js handles it outside the game)
+        byId("music-toggle").addEventListener("click", () => { if (getComputedStyle(byId("game-view")).display !== "none") Audio.toggle(); });
         document.addEventListener("pointerdown", () => Audio.unlock(), { once: true });
         listenersBound = true;
     }
@@ -1295,13 +1296,14 @@ const Game = (function() {
             particles: [],
             floating: [],
             lastUtility: null,
-            stats: { damage: 0, cards: 0, floors: 0, blocks: 0 }
+            stats: { damage: 0, cards: 0, floors: 0, blocks: 0, blocked: 0 }
         };
 
         byId("game-overlay").hidden = true;
         byId("help-button").style.display = "none";
         byId("battle-feed").replaceChildren();
-        byId("sound-toggle").textContent = Audio.muted ? "Sound off" : "Sound on";
+        Audio.syncMuted();                                  // keep the sound off in the game if it was turned off in the lobby
+        byId("music-toggle").textContent = Audio.muted ? "Sound off" : "Sound on";
         spawnEnemy();
         renderHands();
         paintMeters();
@@ -1311,6 +1313,7 @@ const Game = (function() {
     }
 
     function stop() {
+        if (typeof GameOver !== "undefined") GameOver.hide();
         if (animationFrame) cancelAnimationFrame(animationFrame);
         animationFrame = null;
         state = null;
@@ -1321,5 +1324,7 @@ const Game = (function() {
         byId("help-button") && (byId("help-button").style.display = "");
     }
 
-    return { start, stop };
+    // Enemy HP per floor as it really is in the game (base HP times the small floor multiplier), for the How to Play pages
+    const FLOOR_HP = FLOOR_HEALTH.map((hp, i) => Math.round(hp * FLOOR_HEALTH_VARIANCE[i]));
+    return { start, stop, CARD_POOL, ENEMIES, FLOOR_HEALTH: FLOOR_HP };
 })();

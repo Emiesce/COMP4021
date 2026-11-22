@@ -1,4 +1,4 @@
-// Data files (accounts). Everything that reads or writes data/ goes through here.
+// Data files (accounts, leaderboard). Everything that reads or writes data/ goes through here.
 //   - init() creates the data folder and users.json if they are missing or empty
 //   - writes are atomic: the new content goes to a temporary file which is then renamed over the
 //     real file, so a crash in the middle of a write can never leave a half-written users.json
@@ -48,4 +48,4 @@ function saveUsers(users) {
     writeJson(USERS_FILE, users);
 }
 
-module.exports = { init, readJson, writeJson, loadUsers, saveUsers };
+module.exports = { init, readJson, writeJson, loadUsers, saveUsers, DATA_DIR };

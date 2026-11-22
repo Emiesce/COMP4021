@@ -14,10 +14,10 @@
 // Socket.IO events (client -> server):
 //   room:create {name?}   create a room and sit in it
 //   room:join   roomId    join an open room
-//   room:quick            join the first open room, or create one
 //   room:leave            leave the room
 //   lobby:ready bool?     set (or toggle) your ready flag
-//   lobby:solo            start a one-player local prototype
+//   lobby:solo            start a one-player run
+//   game:report result    TEMPORARY, solo only: the browser reports its own solo result (see below)
 //   rooms:request         ask for the open-room list again
 // Socket.IO events (server -> client):
 //   rooms:list [{id,name,count,max}]
@@ -26,8 +26,10 @@
 //   room:countdown {seconds} / room:countdown_cancel
 //   room:left / room:error "message"
 //   session:replaced                   this account connected somewhere else
-//   game:start {roomId, players}       start the local gameplay prototype
+//   game:start {roomId, players}       the game begins
+//   game:over {entry, rank, total}     the run was saved: the final result and where it ranks on the leaderboard
 const Game = require("./game");
+const leaderboard = require("./leaderboard");
 
 const MAX_PLAYERS = 2;
 const COUNTDOWN_SECONDS = 3;
@@ -111,18 +113,34 @@ module.exports = function(io) {
         if (announce) notify(room, "countdown_cancelled", null);
     };
 
+    // A run has ended. Save the result on the leaderboard and tell everybody in the room where they ranked.
+    // `result` is { won, floors, durationMs, players: [...] } (see docs/multiplayer-protocol.md).
+    // A broken leaderboard file must never break the game, so any error is only logged.
+    const saveResult = (room, result) => {
+        if (!result || room.resultSaved) return;
+        room.resultSaved = true;
+        try {
+            const saved = leaderboard.record(result);
+            if (saved) io.to(room.id).emit("game:over", { entry: saved.entry, rank: saved.rank, total: saved.total });
+        } catch (err) {
+            console.error("Could not save the result:", err);
+        }
+    };
+
     const startGame = (room) => {
         room.status = "playing";
+        room.resultSaved = false;
         sendRooms();
         io.to(room.id).emit("game:start", gameStartInfo(room));
-        room.game = Game.create(io, room, () => {
+        // The game calls onOver(result) when the run is finished (win, defeat or time out)
+        room.game = Game.create(io, room, (result) => {
+            saveResult(room, result);
             // The game is over: everybody goes back to the room, not ready
             if (room.status !== "playing") return;
             room.status = "lobby";
             room.players.forEach(p => { p.ready = false; });
             sendRoom(room);
             sendRooms();
-            // The game client owns prototype results and returns players here on room leave.
         });
         room.game.start();
     };
@@ -310,11 +328,17 @@ module.exports = function(io) {
             joinRoom(socket, room);
         });
 
-        on("room:quick", () => {
-            const open = [...rooms.values()].find(r => r.status === "lobby" && r.players.length < MAX_PLAYERS);
-            const err = joinError(socket, open || { status: "lobby", players: [] });
-            if (err) { socket.emit("room:error", err); return; }
-            joinRoom(socket, open || createRoom(user, ""));
+        // TEMPORARY: until the server runs the solo game itself, the browser tells us how a solo run ended.
+        // Only accepted once per run, only for a room with one player in a running game. A two-player result
+        // is never taken from a browser: server/game.js hands it to onOver(result) instead.
+        on("game:report", (result) => {
+            const room = rooms.get(socket.data.roomId);
+            if (!room || room.status !== "playing" || room.players.length !== 1) return;
+            if (!result || typeof result !== "object") return;
+            const player = room.players[0];
+            const reported = Array.isArray(result.players) && result.players[0] ? result.players[0] : {};
+            // The name on the leaderboard is the account's, whatever the browser says
+            saveResult(room, { ...result, players: [{ ...reported, username: player.username, name: player.name }] });
         });
 
         on("room:leave", () => leaveRoom(socket, true));

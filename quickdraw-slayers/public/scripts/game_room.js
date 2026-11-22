@@ -105,6 +105,7 @@ const GameRoom = (function() {
     const enter = function(json) {
         user = json.user;
         $("#game-room-user-name").text(user.name);
+        $("#topbar-initial").text(Array.from(user.name)[0] || "?");
         $("#game-room-start-page").hide();
         $("#game-room-content-page").show();
         if (json.needsGuide) {

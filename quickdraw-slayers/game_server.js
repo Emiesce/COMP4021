@@ -9,6 +9,7 @@ const { createServer } = require("http");
 const { Server } = require("socket.io");
 
 const store = require("./server/store");
+const leaderboard = require("./server/leaderboard");
 const { createLimiter } = require("./server/ratelimit");
 
 const PORT = process.env.PORT || 8000;
@@ -187,6 +188,20 @@ app.post("/guide-complete", (req, res) => {
     store.saveUsers(users);
     delete req.session.guideUser;
     res.json({ success: true });
+});
+
+// Handle the /leaderboard endpoint: the best runs, for the lobby's Hall of Slayers
+app.get("/leaderboard", (req, res) => {
+    if (!req.session.user) {
+        res.json({ error: "You have not signed in." });
+        return;
+    }
+    try {
+        res.json({ entries: leaderboard.top(10) });
+    } catch (err) {
+        console.error("Could not read the leaderboard:", err);
+        res.json({ error: "The leaderboard could not be read." });
+    }
 });
 
 // Handle the /signout endpoint

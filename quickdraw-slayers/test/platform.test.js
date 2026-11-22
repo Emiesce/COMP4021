@@ -49,12 +49,13 @@ const makeUser = async (username, name = username) => {
 // A simulated browser tab: connects with the account's cookie and records every event it receives
 const connect = (account) => new Promise((resolve) => {
     const socket = io(BASE, { extraHeaders: { cookie: account.cookie }, transports: ["websocket"], reconnection: false });
-    const tab = { socket, events: [], notices: [], disconnectReason: null, lastRoom: null, gameStart: null, refused: null };
+    const tab = { socket, events: [], notices: [], disconnectReason: null, lastRoom: null, gameStart: null, gameOver: null, refused: null };
     socket.onAny((event, data) => {
         tab.events.push(event);
         if (event === "room:notice") tab.notices.push(data.type);
         if (event === "room:update") tab.lastRoom = data;
         if (event === "game:start") tab.gameStart = data;
+        if (event === "game:over") tab.gameOver = data;
     });
     socket.on("disconnect", (reason) => { tab.disconnectReason = reason; });
     socket.on("connect", () => resolve(tab));
@@ -115,20 +116,42 @@ async function run() {
     check((await post("/signin", { username: "a", password: "pw" })).json.user, "another username can still sign in");
 
     // 6. Solo gameplay starts without pairing or a countdown
-    const solo = await connect(await makeUser("solo", "Solo"));
+    const soloAccount = await makeUser("solo", "Solo");
+    const solo = await connect(soloAccount);
     solo.socket.emit("lobby:solo");
     check(await waitFor(() => count(solo, "game:start") === 1), "solo run starts immediately");
     check(solo.gameStart && solo.gameStart.players.length === 1 && solo.gameStart.players[0].username === "solo", "solo run only contains the local player");
+
+    // 6b. A finished solo run is saved on the leaderboard (the browser reports it for now)
+    check((await get("/leaderboard")).json.error, "/leaderboard needs a sign-in");
+    check((await get("/leaderboard", soloAccount.cookie)).json.entries.length === 0, "the leaderboard starts empty");
+    const report = { won: true, floors: 3, durationMs: 200000, reason: "x",
+        players: [{ name: "Hacker", username: "someoneelse", damage: 900, blocked: 50, cards: 30, survivalMs: 200000 }] };
+    solo.socket.emit("game:report", report);
+    check(await waitFor(() => solo.gameOver), "the server answers a solo result with game:over");
+    check(solo.gameOver && solo.gameOver.rank === 1 && solo.gameOver.total === 1, "the first saved run is rank 1 of 1");
+    check(solo.gameOver && solo.gameOver.entry.players[0].username === "solo" && solo.gameOver.entry.players[0].name === "Solo",
+        "the leaderboard uses the account's own name, not what the browser claims");
+    solo.socket.emit("game:report", report);
+    await sleep(300);
+    check(count(solo, "game:over") === 1, "a second report for the same run is ignored");
+    const board = (await get("/leaderboard", soloAccount.cookie)).json.entries;
+    check(board.length === 1 && board[0].rank === 1 && board[0].damage === 900 && board[0].players[0].name === "Solo", "/leaderboard lists the saved run");
+    const lobbyOnly = await connect(await makeUser("idle", "Idle"));
+    lobbyOnly.socket.emit("game:report", report);
+    await sleep(300);
+    check(count(lobbyOnly, "game:over") === 0 && (await get("/leaderboard", soloAccount.cookie)).json.entries.length === 1, "a report from a player who is not in a game is ignored");
+    lobbyOnly.socket.close();
     solo.socket.close();
     await sleep(200);
 
     // 7. Pairing, notices, countdown
     const [alice, bob] = [await makeUser("alice", "Alice"), await makeUser("bob", "Bob")];
     const A = await connect(alice), B = await connect(bob);
-    A.socket.emit("room:quick"); await sleep(200);
+    A.socket.emit("room:create", {}); await sleep(200);
     check(A.lastRoom && A.lastRoom.players.length === 1, "first player waits alone in a new room");
-    B.socket.emit("room:quick");
-    check(await waitFor(() => A.lastRoom && A.lastRoom.players.length === 2), "second Quick Match lands in the same room");
+    B.socket.emit("room:join", A.lastRoom.id);
+    check(await waitFor(() => A.lastRoom && A.lastRoom.players.length === 2), "second player joining by room id lands in the same room");
     check(A.notices.includes("joined"), "partner gets a 'joined' notice");
     A.socket.emit("lobby:ready");
     check(await waitFor(() => B.notices.includes("ready")), "partner gets a 'ready' notice");
@@ -136,6 +159,9 @@ async function run() {
     check(await waitFor(() => B.notices.includes("unready")), "partner gets an 'unready' notice");
     A.socket.emit("lobby:ready"); B.socket.emit("lobby:ready");
     check(await waitFor(() => count(A, "room:countdown") >= 3 && count(B, "game:start") === 1, 6000), "both ready: 3-2-1 countdown, then game:start");
+    A.socket.emit("game:report", report);
+    await sleep(300);
+    check(count(A, "game:over") === 0 && (await get("/leaderboard", alice.cookie)).json.entries.length === 1, "a two-player result is never taken from a browser");
 
     // 8. Refresh keeps the seat (rejoin within the grace period)
     dropConnection(B); 
@@ -154,7 +180,7 @@ async function run() {
     check(A2.lastRoom && A2.lastRoom.players.length === 1, "new tab takes over the seat in the room");
 
     // 10. Signing out disconnects every tab at once and frees the seat (no grace period)
-    const C = await connect(bob); C.socket.emit("room:quick");
+    const C = await connect(bob); C.socket.emit("room:join", A2.lastRoom.id);
     await waitFor(() => A2.lastRoom && A2.lastRoom.players.length === 2);
     await get("/signout", bob.cookie);
     check(await waitFor(() => C.disconnectReason === "io server disconnect"), "sign out disconnects the player's socket");
