@@ -153,7 +153,7 @@ const Game = (function() {
                 if (!AudioContext) return;
                 this.context = new AudioContext();
                 this.master = this.context.createGain();
-                this.master.gain.value = 0.13;
+                this.master.gain.value = 0.20;  // master volume control for hit/attack sounds
                 this.master.connect(this.context.destination);
             }
             if (!this.interval) this.beginMusic();
@@ -161,15 +161,14 @@ const Game = (function() {
         },
 
         beginMusic() {
-            if (this.interval) clearInterval(this.interval);
-            const notes = [146.83, 196, 246.94, 293.66, 246.94, 196, 164.81, 220];
-            this.interval = setInterval(() => {
-                if (!state || state.status === "over" || this.muted || !this.context) return;
-                const now = this.context.currentTime;
-                this.note(notes[this.step % notes.length], now, 0.42, "triangle", 0.09);
-                if (this.step % 2 === 0) this.note(notes[(this.step + 2) % notes.length] / 2, now, 0.7, "sine", 0.05);
-                this.step++;
-            }, 580);
+            if (!this.game_music_1) { 
+                this.game_music_1 = new window.Audio("/sounds/boss_music_1.mp3");
+                this.game_music_1.loop = true;
+                this.game_music_1.volume = 0.3; 
+            }
+            if (!this.muted) { 
+                this.game_music_1.play();
+            }
         },
 
         note(frequency, when, duration, type, volume) {
@@ -191,26 +190,29 @@ const Game = (function() {
             if (!this.context || this.context.state !== "running" || this.muted) return;
             const now = this.context.currentTime;
             if (name === "attack") {
-                this.note(520, now, 0.09, "square", 0.09);
-                this.note(250, now + 0.025, 0.12, "sawtooth", 0.06);
+                this.note(520, now, 0.09, "square", 0.11);
+                this.note(250, now + 0.025, 0.12, "sawtooth", 0.11);
             } else if (name === "block") {
-                this.note(310, now, 0.16, "triangle", 0.07);
-                this.note(620, now + 0.05, 0.2, "sine", 0.05);
+                this.note(310, now, 0.16, "triangle", 0.11);
+                this.note(620, now + 0.05, 0.2, "sine", 0.11);
             } else if (name === "hit") {
-                this.note(110, now, 0.14, "sawtooth", 0.08);
+                this.note(110, now, 0.14, "sawtooth", 0.10);
             } else if (name === "reward") {
-                [392, 523.25, 659.25].forEach((note, index) => this.note(note, now + index * 0.09, 0.22, "triangle", 0.07));
+                [392, 523.25, 659.25].forEach((note, index) => this.note(note, now + index * 0.09, 0.22, "triangle", 0.10));
             } else if (name === "error") {
-                this.note(120, now, 0.1, "square", 0.04);
+                this.note(120, now, 0.1, "square", 0.08);   
             } else if (name === "victory") {
-                [261.63, 329.63, 392, 523.25].forEach((note, index) => this.note(note, now + index * 0.12, 0.3, "triangle", 0.08));
+                [261.63, 329.63, 392, 523.25].forEach((note, index) => this.note(note, now + index * 0.12, 0.3, "triangle", 0.10));
             }
         },
 
         toggle() {
             this.unlock();
             this.muted = !this.muted;
-            if (this.master) this.master.gain.value = this.muted ? 0 : 0.13;
+            if (this.game_music_1) {
+                if (this.muted) this.game_music_1.pause();
+                else this.game_music_1.play();
+            }
             byId("sound-toggle").textContent = this.muted ? "Sound off" : "Sound on";
             byId("sound-toggle").setAttribute("aria-label", this.muted ? "Enable game sounds" : "Mute game sounds");
         },
@@ -218,6 +220,9 @@ const Game = (function() {
         stop() {
             if (this.interval) clearInterval(this.interval);
             this.interval = null;
+            if (this.game_music_1) {
+                this.game_music_1.pause();
+            }
         }
     };
 
