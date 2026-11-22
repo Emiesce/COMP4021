@@ -1,5 +1,5 @@
-// Game logic for ONE room. Intentionally empty for now: when both players are ready and the
-// countdown ends, the lobby calls create() and start(), and the browsers show a blank page.
+// Lifecycle boundary for ONE room. Multiplayer combat remains unimplemented; when both
+// players are ready, the clients run the local gameplay prototype.
 //
 // The lobby calls these methods; the game calls onOver() when it has finished:
 //   start()                             the countdown ended
@@ -7,8 +7,8 @@
 //   playerRejoined(oldId, newId)        a player's browser reconnected (refresh / new tab); their socket id changed
 //   stop()                              the room is being removed: clear every timer here
 //
-// TODO (group): the server-authoritative game goes here (state, timers, cards, enemies, game over).
-// Every message must be sent to this room only: io.to(room.id).emit(...)
+// Future multiplayer state, timers, cards, enemies and game-over events belong here. Every
+// server message must be scoped with io.to(room.id).emit(...), never a global player list.
 function create(io, room, onOver) {
     return {
         start() {},

@@ -17,6 +17,7 @@
 //   room:quick            join the first open room, or create one
 //   room:leave            leave the room
 //   lobby:ready bool?     set (or toggle) your ready flag
+//   lobby:solo            start a one-player local prototype
 //   rooms:request         ask for the open-room list again
 // Socket.IO events (server -> client):
 //   rooms:list [{id,name,count,max}]
@@ -25,7 +26,7 @@
 //   room:countdown {seconds} / room:countdown_cancel
 //   room:left / room:error "message"
 //   session:replaced                   this account connected somewhere else
-//   game:start {roomId, players}       (the game page is blank for now; see server/game.js)
+//   game:start {roomId, players}       start the local gameplay prototype
 const Game = require("./game");
 
 const MAX_PLAYERS = 2;
@@ -121,7 +122,7 @@ module.exports = function(io) {
             room.players.forEach(p => { p.ready = false; });
             sendRoom(room);
             sendRooms();
-            // TODO: game over screen (stats, leaderboard, rematch)
+            // The game client owns prototype results and returns players here on room leave.
         });
         room.game.start();
     };
@@ -284,6 +285,17 @@ module.exports = function(io) {
 
         on("rooms:request", () => sendRooms(socket));
 
+        on("lobby:solo", () => {
+            if (socket.data.roomId) {
+                socket.emit("room:error", "Leave your room before starting a solo run.");
+                return;
+            }
+            const room = createRoom(user, `${user.name}'s solo run`);
+            joinRoom(socket, room);
+            room.players[0].ready = true;
+            startGame(room);
+        });
+
         on("room:create", (data) => {
             const err = joinError(socket, { status: "lobby", players: [] });
             if (err) { socket.emit("room:error", err); return; }
@@ -322,7 +334,7 @@ module.exports = function(io) {
             }
         });
 
-        // TODO: game events (play card etc.) go here and must only reach the sender's own room
+        // Multiplayer combat events will be added here; the current client runs a local prototype.
 
         socket.on("disconnect", (reason) => {
             console.log("Player disconnected:", user.username, socket.id, `(${reason})`);

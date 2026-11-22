@@ -126,7 +126,7 @@ const Lobby = (function() {
             show("#lobby-view");
         });
 
-        socket.on("game:start", () => { show("#game-view"); Game.start(socket); });
+        socket.on("game:start", (info) => { show("#game-view"); Game.start(socket, info, me); });
     };
 
     // Called when the player signs out or the session ends
@@ -143,6 +143,7 @@ const Lobby = (function() {
 
     $(function() {
         $("#quick-button").on("click", () => socket.emit("room:quick"));
+        $("#solo-button").on("click", () => socket.emit("lobby:solo"));
         $("#create-button").on("click", () => socket.emit("room:create", {}));
         $("#ready-button").on("click", () => socket.emit("lobby:ready"));
         $("#leave-button").on("click", () => socket.emit("room:leave"));
