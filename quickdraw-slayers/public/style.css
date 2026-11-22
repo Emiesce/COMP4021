@@ -85,6 +85,11 @@ form button {
     flex-direction: column;
 }
 
+/* The signed-in pages start with the bar. Centering them leaves a gap above it. */
+#game-room-content-page {
+    justify-content: flex-start;
+}
+
 #signin-form, #register-form {
     width: 50%;
     min-width: 400px;
