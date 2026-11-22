@@ -37,13 +37,20 @@ const GameRoom = (function() {
         $(formSelector).find("button").prop("disabled", busy);
     };
 
-    // Go back to the start page (signed out)
+    const showAuthTab = function(which) {
+        const signin = which === "signin";
+        $("#signin-form").prop("hidden", !signin);
+        $("#register-form").prop("hidden", signin);
+        $("#start-signin-button").toggleClass("active", signin);
+        $("#start-register-button").toggleClass("active", !signin);
+    };
+
+    // Go back to the landing page (signed out)
     const showStartPage = function() {
         user = null;
         $("#game-room-content-page").hide();
-        $("#game-room-signin-page").hide();
-        $("#game-room-register-page").hide();
-        $("#game-room-start-page").show();
+        $("#game-room-start-page").css("display", "flex");
+        showAuthTab("signin");
     };
 
     // The player reached the end of How to Play: tell the server, then enter the lobby
@@ -65,8 +72,9 @@ const GameRoom = (function() {
         user = null;
         if (hooks.onSignOut) hooks.onSignOut();             // disconnects the lobby
         HowTo.dismiss();                                    // close the guide if it is open
-        $("#game-room-content-page, #game-room-start-page, #game-room-register-page").hide();
-        $("#game-room-signin-page").show();
+        $("#game-room-content-page, #game-room-start-page").hide();
+        $("#game-room-start-page").css("display", "flex");
+        showAuthTab("signin");
         $("#signin-form").get(0).reset();
         showMessage("#signin-message", message, true);
         $("#signin-username").focus();
@@ -74,8 +82,8 @@ const GameRoom = (function() {
 
     // Show the sign-in page (used after a new player has read How to Play), username filled in
     const goToSignIn = function(username) {
-        $("#game-room-register-page").hide();
-        $("#game-room-signin-page").show();
+        $("#game-room-start-page").css("display", "flex");
+        showAuthTab("signin");
         $("#signin-form").get(0).reset();
         $("#signin-username").val(username);
         showMessage("#signin-message", "Your account has been created. Sign in to play!", false);
@@ -97,7 +105,7 @@ const GameRoom = (function() {
     const enter = function(json) {
         user = json.user;
         $("#game-room-user-name").text(user.name);
-        $("#game-room-start-page, #game-room-signin-page, #game-room-register-page").hide();
+        $("#game-room-start-page").hide();
         $("#game-room-content-page").show();
         if (json.needsGuide) {
             $("#howto-required-note").text(`Welcome, ${user.name}! Please go through all the steps before you play.`);
@@ -109,25 +117,21 @@ const GameRoom = (function() {
 
     const init = function() {
         $("#start-signin-button").on("click", function() {
-            $("#game-room-start-page").hide();
-            $("#game-room-signin-page").show();
+            showAuthTab("signin");
             $("#signin-form").get(0).reset();
             showMessage("#signin-message", "", false);
             $("#signin-username").focus();
         });
 
         $("#start-register-button").on("click", function() {
-            $("#game-room-start-page").hide();
-            $("#game-room-register-page").show();
+            showAuthTab("register");
             $("#register-form").get(0).reset();
             showMessage("#register-message", "", false);
             $("#register-username").focus();
         });
 
-        $(".back-button").on("click", function() {
-            $("#game-room-start-page").show();
-            $("#game-room-signin-page").hide();
-            $("#game-room-register-page").hide();
+        $("#landing-howto").on("click", function() {
+            $("#help-button").trigger("click");
         });
 
         // Show / Hide on password fields

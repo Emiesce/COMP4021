@@ -12,63 +12,60 @@
 
 <div id="game-room-area">
 
-    <!-- Start page: description + how to play (TODO: add screenshots/GIFs of each action) -->
+    <!-- Landing page: title over the campus art, sign in / register on the right -->
     <div id="game-room-start-page">
-        <div class="row"><div class="col">
-            <div class="title">QuickDraw Slayers</div>
-            <div id="description" class="panel">
-                <p><b>A real-time 2-player co-op card battle.</b> There are no turns: both players
-                act at the same time and every card takes effect the moment it is played.</p>
-                <p>Defeat the enemy on every floor before the 4:00 master timer runs out. Click a card or press
-                <kbd>1</kbd>-<kbd>4</kbd> to play it. Press the green <b>?</b> button for the full guide.</p>
+        <div class="landing-hero">
+            <h1 class="landing-title">
+                <span class="landing-quick">QUICKDRAW</span>
+                <span class="landing-slayers">SLAYERS</span>
+            </h1>
+            <p class="landing-lead"><b>A real-time 2-player co-op card battle.</b> There are no turns: both players act at the same time and every card takes effect the moment it is played.</p>
+            <p class="landing-lead">Defeat the enemy on every floor before the 4:00 master timer runs out. Click a card or press 1-4 to play it. Press the green "?" button for the full guide.</p>
+            <div class="landing-pills">
+                <span>2-PLAYER CO-OP</span>
+                <span>REAL-TIME CARDS</span>
+                <span>3 FLOORS IN 4 MINS</span>
             </div>
-            <div class="row">
-                <button id="start-signin-button">Sign In</button>
-                <button id="start-register-button">Register</button>
-            </div>
-        </div></div>
-    </div>
-
-    <!-- Register page -->
-    <div id="game-room-register-page" style="display: none">
-        <div class="row">
-            <form id="register-form" class="col" autocomplete="on">
-                <div class="subtitle">Register</div>
-                <input id="register-username" maxlength="16" placeholder="Username (max 16: letters, numbers, _)" autocomplete="username" autocapitalize="none" spellcheck="false">
-                <input id="register-name" maxlength="20" placeholder="Name" autocomplete="nickname">
-                <div class="password-field">
-                    <input id="register-password" type="password" placeholder="Password" autocomplete="new-password">
-                    <button type="button" class="toggle-password" aria-label="Show password">Show</button>
-                </div>
-                <div class="password-field">
-                    <input id="register-confirm" type="password" placeholder="Confirm password" autocomplete="new-password">
-                    <button type="button" class="toggle-password" aria-label="Show password">Show</button>
-                </div>
-                <div class="row">
-                    <button id="register-button" type="submit">Register</button>
-                    <button class="back-button" type="button">Back</button>
-                </div>
-                <div id="register-message" class="message" role="alert"></div>
-            </form>
         </div>
-    </div>
 
-    <!-- Sign-in page -->
-    <div id="game-room-signin-page" style="display: none">
-        <div class="row">
-            <form id="signin-form" class="col" autocomplete="on">
-                <div class="subtitle">Sign In</div>
+        <div class="landing-card">
+            <div class="landing-tabs" role="tablist">
+                <button id="start-signin-button" class="landing-tab active" type="button" role="tab">SIGN IN</button>
+                <button id="start-register-button" class="landing-tab" type="button" role="tab">REGISTER</button>
+            </div>
+
+            <form id="signin-form" class="landing-form" autocomplete="on">
+                <label class="landing-label" for="signin-username">Username</label>
                 <input id="signin-username" maxlength="16" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false">
+                <label class="landing-label" for="signin-password">Password</label>
                 <div class="password-field">
                     <input id="signin-password" type="password" placeholder="Password" autocomplete="current-password">
                     <button type="button" class="toggle-password" aria-label="Show password">Show</button>
                 </div>
-                <div class="row">
-                    <button id="signin-button" type="submit">Sign In</button>
-                    <button class="back-button" type="button">Back</button>
-                </div>
+                <button id="signin-button" class="landing-submit" type="submit">SIGN IN</button>
                 <div id="signin-message" class="message" role="alert"></div>
             </form>
+
+            <form id="register-form" class="landing-form" autocomplete="on" hidden>
+                <label class="landing-label" for="register-username">Username</label>
+                <input id="register-username" maxlength="16" placeholder="Letters, numbers, _" autocomplete="username" autocapitalize="none" spellcheck="false">
+                <label class="landing-label" for="register-name">Display name</label>
+                <input id="register-name" maxlength="20" placeholder="Name" autocomplete="nickname">
+                <label class="landing-label" for="register-password">Password</label>
+                <div class="password-field">
+                    <input id="register-password" type="password" placeholder="Password" autocomplete="new-password">
+                    <button type="button" class="toggle-password" aria-label="Show password">Show</button>
+                </div>
+                <label class="landing-label" for="register-confirm">Confirm password</label>
+                <div class="password-field">
+                    <input id="register-confirm" type="password" placeholder="Confirm password" autocomplete="new-password">
+                    <button type="button" class="toggle-password" aria-label="Show password">Show</button>
+                </div>
+                <button id="register-button" class="landing-submit" type="submit">REGISTER</button>
+                <div id="register-message" class="message" role="alert"></div>
+            </form>
+
+            <p class="landing-note">You stay signed in on this browser until you sign out.</p>
         </div>
     </div>
 
