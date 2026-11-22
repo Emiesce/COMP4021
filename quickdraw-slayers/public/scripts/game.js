@@ -31,7 +31,7 @@ const Game = (function() {
         { id: "milk_tea", name: "Milk Tea", type: "UTILITY", cost: 1, action: "heal", value: 24,
             image: "/images/cards/milk_tea.jpg", color: "#79e49d", description: "Recover 24 HP." },
         { id: "extension", name: "Extension", type: "UTILITY", cost: 2, action: "energy", value: 2,
-            image: "/images/cards/extension.jpg", color: "#ffe078", description: "Restore 2 Energy." }
+            image: "/images/cards/extension.jpg", color: "#ffe078", description: "Restore 2 Energy for all players." }
     ];
 
     const ENEMIES = [
