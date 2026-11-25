@@ -1,7 +1,7 @@
-# Multiplayer protocol (contract for `server/game.js`)
+# Multiplayer protocol
 
-This file describes what the platform (sign-in, lobby, rooms, leaderboard, result screen) already does, and the
-few things the server-side game has to do to plug in. Everything outside `server/game.js` should not need to change.
+The lobby owns accounts and rooms. Two-player combat is owned by `server/game.js`, which is authoritative for
+hands, Energy, HP, cooldowns, damage, rewards, the master timer, and results. Solo combat remains client-local.
 
 ## 1. Who does what
 
@@ -9,20 +9,21 @@ few things the server-side game has to do to plug in. Everything outside `server
 |---|---|---|
 | Accounts, sessions, sign-in | `game_server.js`, `server/store.js` | done |
 | Lobby, rooms, ready, countdown, rejoin | `server/lobby.js` | done |
-| **Game logic for a room (server-authoritative)** | `server/game.js` | **stub, to write** |
+| **Game logic for a two-player room (server-authoritative)** | `server/game.js` | done |
 | Leaderboard (ranking, saving) | `server/leaderboard.js` | done |
 | Result screen | `public/scripts/gameover.js` | done |
-| Game rendering and input | `public/scripts/game.js` | solo works; needs to follow server state |
+| Game rendering and input | `public/scripts/game.js` | solo local; co-op snapshots/effects |
+| Shared combat definitions | `public/scripts/game_data.js` | done |
 
 ## 2. Lifecycle of a room
 
 1. Players create or join a room, both press Ready, a 3-2-1 countdown runs.
-2. `lobby.js` calls `Game.create(io, room, onOver)` and then `game.start()`; it also emits `game:start` to the room.
+2. `lobby.js` emits `game:start`, then calls `Game.create(io, room, onOver)` and `game.start()`.
 3. While `room.status === "playing"` the game runs. Clients send actions, the server answers with state.
 4. The game ends in one of two ways:
    - **Normal end** (win, defeat, time out): call `onOver(result)` once (shape in section 4).
-   - **A player leaves for good**: `lobby.js` calls `game.playerLeft(player)`. The stub ends the room without a result, so nothing is saved.
-5. `lobby.js` saves the result, emits `game:over` to the room and puts the room back to `lobby` status.
+   - **A player leaves for good**: `lobby.js` calls `game.playerLeft(player)`. The game aborts without a result.
+5. `lobby.js` saves a normal result, emits `game:over`, and puts the room back to `lobby` status.
 
 The `game` object returned by `create` must have: `start()`, `playerLeft(player)`, `playerRejoined(player)`, `stop()`.
 `stop()` must clear every timer. Never keep game state in module-level variables: there can be several rooms at once.
@@ -37,6 +38,11 @@ The `game` object returned by `create` must have: `start()`, `playerLeft(player)
 - Use the existing `on(event, handler)` wrapper in `lobby.js` for new events: it catches errors and the 60 events/s limit applies.
 - Cheat mode (`C`) is a toggle that affects the whole team (see the announcement). It must be switched on the server and
   announced to the partner (`game:cheat {on, by}`), otherwise the partner would not see the notice the rubric asks for.
+
+Two-player enemies use `1 + 0.8 * (playerCount - 1)` health and
+`1 + 0.25 * (playerCount - 1)` damage. With two players this is 1.8x HP and 1.25x damage. Attacks rotate
+between connected, living Slayers; if one Slayer is temporarily away, the other is the target. A downed
+Slayer returns with half HP on the next floor, while both Slayers down is a defeat.
 
 ## 4. The result object (what you pass to `onOver`)
 
@@ -66,14 +72,14 @@ Call `onOver` only once per game (a second call for the same room is ignored).
 3. Wins: shorter total time first, then more total damage.
 4. Losses: more total damage first, then shorter time.
 
-## 6. Recommended messages (you may rename them, but keep client and server in sync)
+## 6. Messages
 
 Server to clients:
 
 | Event | Payload | When |
 |---|---|---|
 | `game:start` | `{ you, players, seed }` | already sent by the lobby |
-| `game:state` | full snapshot (below), about 10 per second, or on change | during play |
+| `game:state` | full snapshot (below), 10 per second and on actions | during play |
 | `game:effect` | `{ type: "hit"\|"block"\|"heal"\|"floor", ... }` | animation and sound cues |
 | `game:cheat` | `{ on, by }` | cheat toggled |
 | `game:over` | `{ entry, rank, total }` | already sent by the lobby |
@@ -81,10 +87,10 @@ Server to clients:
 A snapshot is the whole truth, so a player who reconnects can be caught up with one message:
 
 ```js
-{ t: 183000, floor: 2, timeLeft: 57000,
-  enemy: { id, hp, maxHp, nextAttackIn },
-  players: [{ username, hp, shield, energy, energyMax, hand: [cardIds], cooldowns: [...] }],
-  reward: null | { options: [...] },
+{ t: 183000, floor: 2, status: "active", timeLeft: 57000, rewardEndsIn: 0,
+  enemy: { id, hp, maxHp, nextAttackIn, vulnerableRemaining, weaknessAttacks },
+  players: [{ username, hp, shield, energy, energyMax, hand: [cardIds], cooldowns: [...], rewardChoice, away }],
+  scaling: { playerCount: 2, health: 1.8, damage: 1.25 },
   cheat: false }
 ```
 
@@ -99,8 +105,8 @@ Clients to server:
 ## 7. Disconnects and rejoin
 
 `lobby.js` already keeps a player's seat for `GRACE_MS` after a drop and calls `playerRejoined(player)` when they come back.
-While a player is away: pause that player's timers (or keep them running, but say which in the announcement), and show the
-partner a "partner reconnecting" notice. On rejoin, send a fresh `game:state` to that socket only.
+While a player is away, their Energy recovery pauses and attacks target the connected partner while possible. The
+master timer and enemy cadence continue. On rejoin, send a fresh `game:state` to that socket only.
 If the grace period ends, `lobby.js` calls `playerLeft`, and the room ends without a saved result.
 
 ## 8. The temporary `game:report` event
@@ -112,6 +118,5 @@ and remove the matching checks in `test/platform.test.js`.
 
 ## 9. Testing
 
-`npm test` runs `test/leaderboard.test.js` (ranking, cleaning, saving) and `test/platform.test.js` (accounts, lobby, rooms,
-rejoin, leaderboard). Add a test per rule you implement: for example, a player who sends `game:play` with `slot: 99` gets ignored,
-and a play with too little Energy changes nothing.
+`npm test` runs leaderboard tests plus the platform integration harness. The platform test covers room-scoped state,
+invalid intents, independent actions, cooldowns, scaled health and actual attack damage, team cheat, and rejoin snapshots.

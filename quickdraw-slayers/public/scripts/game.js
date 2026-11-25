@@ -1,5 +1,4 @@
-// Playable solo battle prototype. The room socket starts/stops this page, while
-// combat remains client-local until the authoritative multiplayer protocol is added.
+// Solo combat remains client-local; co-op combat is rendered from server-authoritative snapshots.
 const Game = (function() {
     "use strict";
 
@@ -8,56 +7,15 @@ const Game = (function() {
     // The background image is 16:9, same as the canvas. Lift it so the courtyard meets the sprites,
     // and stretch the bottom edge to cover the strip that lift uncovers.
     const BACKGROUND_SHIFT = 96;
-    const MASTER_TIME_MS = 240000;
-    const ENERGY_INTERVAL_MS = 1800;
-    const REWARD_TIME_MS = 5000;
-    const MAX_SHIELD = 60;
-    const DECK_COPIES = 2;
+    const {
+        MASTER_TIME_MS, ENERGY_INTERVAL_MS, REWARD_TIME_MS, MAX_SHIELD, DECK_COPIES,
+        CARD_POOL, ENEMIES, FLOOR_HEALTH, FLOOR_HEALTH_VARIANCE
+    } = QuickdrawGameData;
 
-    const CARD_POOL = [
-        { id: "pop_quiz", name: "Pop Quiz", type: "ATTACK", cost: 1, action: "damage", value: 16,
-            image: "/images/cards/pop_quiz.jpg", color: "#ffcf66", description: "Fast strike. 16 damage." },
-        { id: "dragonboat", name: "Dragonboat", type: "ATTACK", cost: 2, action: "damage", value: 32,
-            image: "/images/cards/dragonboat.jpg", color: "#ff8d53", description: "Heavy strike. 32 damage." },
-        { id: "final_exam", name: "Final Exam", type: "ATTACK", cost: 3, action: "damage", value: 54,
-            image: "/images/cards/final_exam.jpg", color: "#f45d8e", description: "Devastating strike. 54 damage." },
-        { id: "lab_explosion", name: "Lab Explosion", type: "ATTACK", cost: 3, action: "damage", value: 48,
-            image: "/images/cards/lab_explosion.jpg", color: "#ffad50", description: "Explosive hit. 48 damage." },
-        { id: "shield", name: "Shield", type: "BLOCK", cost: 1, action: "block", value: 24,
-            image: "/images/cards/shield.jpg", color: "#63dcff", description: "Gain 24 Shield." },
-        { id: "office_hours", name: "Office Hours", type: "BLOCK", cost: 1, action: "block", value: 20,
-            image: "/images/cards/office_hours.jpg", color: "#76cfff", description: "Gain 20 Shield. Find an opening." },
-        { id: "group_project", name: "Group Project", type: "UTILITY", cost: 2, action: "weaken", value: 2,
-            image: "/images/cards/group_project.jpg", color: "#b888ff", description: "Enemy deals 35% less damage for 2 attacks." },
-        { id: "bell_curve", name: "Bell Curve", type: "UTILITY", cost: 2, action: "vulnerable", value: 8000,
-            image: "/images/cards/bell_curve.jpg", color: "#d989ff", description: "Enemy takes 45% more damage for 8s." },
-        { id: "milk_tea", name: "Milk Tea", type: "UTILITY", cost: 1, action: "heal", value: 24,
-            image: "/images/cards/milk_tea.jpg", color: "#79e49d", description: "Recover 24 HP." },
-        { id: "extension", name: "Extension", type: "UTILITY", cost: 2, action: "energy", value: 2,
-            image: "/images/cards/extension.jpg", color: "#ffe078", description: "Restore 2 Energy for all players." }
+    const PLAYER_LAYOUT = [
+        { x: 125, y: 222, scale: 0.82, sprite: "grade_farmer", fallbackName: "Grade Farmer" },
+        { x: 340, y: 254, scale: 0.68, sprite: "deadline_fighter", fallbackName: "Deadline Fighter" }
     ];
-
-    const ENEMIES = [
-        {
-            id: "enemy_typhoon", name: "Campus Typhoon", intent: "Cyclone Spiral",
-            attackDelay: 5200, image: "/images/sprites/enemy_typhoon_sheet.png",
-            baseDamage: 12, color: "#65c8ff"
-        },
-        {
-            id: "enemy_firebird", name: "Feral Firebird", intent: "Crimson Dive",
-            attackDelay: 5000, image: "/images/sprites/enemy_firebird_sheet.png",
-            baseDamage: 13, color: "#ff7a55"
-        },
-        {
-            id: "enemy_dragon", name: "Thesis Dragon", intent: "Thesis Breath",
-            attackDelay: 4700, image: "/images/sprites/enemy_dragon_sheet.png",
-            baseDamage: 14, color: "#c77dff"
-        }
-    ];
-
-    const PLAYER_LAYOUT = [{ x: 156, y: 214, scale: 0.82, sprite: "grade_farmer", fallbackName: "Grade Farmer" }];
-    const FLOOR_HEALTH = [145, 220, 320];
-    const FLOOR_HEALTH_VARIANCE = [1, 1.02, 1.04];
     let socket = null;
     let state = null;
     let animationFrame = null;
@@ -66,12 +24,16 @@ const Game = (function() {
     let assets = { backgrounds: new Image(), sprites: {}, metadata: null };
     let lastHudPaint = 0;
     let listenersBound = false;
+    let networkSocket = null;
+    let localUsername = null;
+    let lastHandSignature = "";
 
     const byId = id => document.getElementById(id);
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
     const randomItem = items => items[Math.floor(Math.random() * items.length)];
     const shuffled = items => [...items].sort(() => Math.random() - 0.5);
     const easeOut = t => 1 - Math.pow(1 - t, 3);
+    const cardById = new Map(CARD_POOL.map(card => [card.id, card]));
 
     function formatTime(milliseconds) {
         const total = Math.max(0, Math.ceil(milliseconds / 1000));
@@ -286,9 +248,6 @@ const Game = (function() {
     }
 
     function updateNames() {
-        state.players.forEach(player => {
-            byId(`player-name-${player.index}`).textContent = player.name;
-        });
         if (!state.enemy) return;
         byId("enemy-name").textContent = state.enemy.name;
         byId("enemy-variant").textContent = `VARIANT ${["I", "II", "III"][state.floor - 1]}`;
@@ -322,6 +281,7 @@ const Game = (function() {
         const description = document.createElement("span");
         description.className = "card-description";
         description.textContent = card.description;
+        button.style.setProperty("--card-color", card.color);
         button.append(image, cost, hotkey, type, name, description);
         button.addEventListener("click", () => playCard(player.index, cardIndex, button));
         return button;
@@ -331,6 +291,7 @@ const Game = (function() {
         if (!state) return;
         state.players.forEach(player => {
             const host = byId(`card-hand-${player.index}`);
+            if (!host) return;
             host.replaceChildren(...player.hand.map((card, cardIndex) => makeCardButton(player, card, cardIndex)));
         });
         updateCardAvailability();
@@ -339,15 +300,18 @@ const Game = (function() {
     function updateCardAvailability() {
         if (!state) return;
         state.players.forEach(player => {
-            const buttons = byId(`card-hand-${player.index}`).querySelectorAll(".card-button");
+            const host = byId(`card-hand-${player.index}`);
+            const handZone = byId(`hand-zone-${player.index}`);
+            if (!host || !handZone) return;
+            const buttons = host.querySelectorAll(".card-button");
             buttons.forEach((button, index) => {
                 const card = player.hand[index];
-                const unavailable = player.hp <= 0 || state.status !== "active" ||
-                    player.lockedSlots.has(index) || (!player.cheat && player.energy < card.cost);
+                const unavailable = !card || player.hp <= 0 || state.status !== "active" ||
+                    player.lockedSlots.has(index) || (!state.cheat && !player.cheat && player.energy < card.cost);
                 button.classList.toggle("unaffordable", unavailable);
                 button.setAttribute("aria-disabled", unavailable ? "true" : "false");
             });
-            byId(`hand-zone-${player.index}`).classList.toggle("inactive", player.hp <= 0 || state.status !== "active");
+            handZone.classList.toggle("inactive", player.hp <= 0 || state.status !== "active");
         });
     }
 
@@ -376,15 +340,12 @@ const Game = (function() {
         state.players.forEach(player => {
             byId(`player-hp-${player.index}`).style.width = `${(player.hp / player.maxHp) * 100}%`;
             byId(`player-hp-text-${player.index}`).textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
-            byId(`player-shield-${player.index}`).style.width = `${(player.shield / MAX_SHIELD) * 100}%`;
-            byId(`player-shield-text-${player.index}`).textContent = String(Math.ceil(player.shield));
+            const shield = Math.ceil(player.shield);
+            byId(`player-shield-text-${player.index}`).textContent = String(shield);
+            const shieldBadge = byId(`player-shield-badge-${player.index}`);
+            shieldBadge.hidden = shield <= 0;
+            shieldBadge.setAttribute("aria-label", `${shield} Shield`);
             byId(`player-hud-${player.index}`).classList.toggle("defeated", player.hp <= 0);
-            const chargeRemaining = player.energy < player.energyMax
-                ? Math.ceil((ENERGY_INTERVAL_MS - player.energyProgress) / 1000)
-                : 0;
-            byId(`player-energy-text-${player.index}`).textContent =
-                `${Math.floor(player.energy)} / ${player.energyMax}${chargeRemaining ? ` +${chargeRemaining}s` : ""}`;
-
             const pipHost = byId(`player-energy-${player.index}`);
             if (pipHost.children.length !== player.energyMax) {
                 pipHost.replaceChildren();
@@ -412,18 +373,16 @@ const Game = (function() {
                     pip.setAttribute("aria-label", full ? "Energy ready" : "Energy empty");
                 }
             }
-            renderStatusStrip(byId(`player-status-${player.index}`), player.shield > 0
-                ? [{ key: "block", kind: "block", label: `BLOCK ${Math.ceil(player.shield)}` }]
-                : []);
-            byId("deck-count").textContent = String(player.deck.length);
-            byId("deck-counter").setAttribute(
-                "aria-label",
-                `${player.deck.length} cards remaining in the deck`
-            );
-            byId("deck-counter").classList.toggle(
-                "reshuffling",
-                state.clock - player.lastDeckReset < 650
-            );
+            byId(`player-hud-${player.index}`).classList.toggle("away", !!player.away);
+            if (player.index === 0) {
+                const deckLength = state.authoritative ? player.deckCount : player.deck.length;
+                byId("deck-count").textContent = String(deckLength);
+                byId("deck-counter").setAttribute("aria-label", `${deckLength} cards remaining in the deck`);
+                byId("deck-counter").classList.toggle(
+                    "reshuffling",
+                    state.clock - player.lastDeckReset < 650
+                );
+            }
         });
 
         const enemy = state.enemy;
@@ -458,7 +417,7 @@ const Game = (function() {
         const clock = byId("master-clock-value");
         clock.textContent = formatTime(state.timeRemaining);
         byId("master-clock").classList.toggle("danger", state.timeRemaining <= 30000 && state.status === "active");
-        byId("cheat-badge").classList.toggle("visible", state.players[0].cheat);
+        byId("cheat-badge").classList.toggle("visible", state.cheat || state.players[0].cheat);
         updateCardAvailability();
     }
 
@@ -486,6 +445,7 @@ const Game = (function() {
 
     function hudPulse(playerIndex, className) {
         const element = byId(`player-hud-${playerIndex}`);
+        if (!element) return;
         element.classList.remove(className);
         void element.offsetWidth;
         element.classList.add(className);
@@ -639,16 +599,25 @@ const Game = (function() {
         Audio.unlock();
         if (!state || state.status !== "active") return;
         const player = state.players[playerIndex];
+        if (!player) return;
         const card = player.hand[cardIndex];
-        if (!player || !card || player.hp <= 0 || player.lockedSlots.has(cardIndex)) return;
-        if (!player.cheat && player.energy < card.cost) {
+        if (!card || player.hp <= 0 || player.lockedSlots.has(cardIndex)) return;
+        if (!state.cheat && !player.cheat && player.energy < card.cost) {
             button && button.classList.add("invalid");
             setTimeout(() => button && button.classList.remove("invalid"), 280);
             feed(`${player.name} needs ${card.cost} Energy for ${card.name}.`);
             Audio.play("error");
             return;
         }
-
+        if (state.authoritative) {
+            if (socket && socket.connected) {
+                player.lockedSlots.add(cardIndex);
+                burnCard(button, card.color);
+                updateCardAvailability();
+                socket.emit("game:play", { slot: cardIndex });
+            }
+            return;
+        }
         if (!player.cheat) {
             player.energy -= card.cost;
             player.energyProgress = 0;
@@ -846,6 +815,16 @@ const Game = (function() {
         const player = state.players[playerIndex];
         if (player.rewardChoice) return;
         player.rewardChoice = choice;
+        if (state.authoritative) {
+            if (socket && socket.connected) socket.emit("game:reward", { choice });
+            document.querySelectorAll(`#reward-player-${playerIndex} .reward-button`).forEach(button => {
+                button.disabled = true;
+                button.classList.toggle("chosen", button.dataset.reward === choice);
+            });
+            byId(`reward-player-${playerIndex}`).classList.add("complete");
+            Audio.play("reward");
+            return;
+        }
         if (choice === "card") {
             player.rewardReviveBonus = false;
             const rare = randomItem(CARD_POOL.filter(card => card.cost >= 2));
@@ -1139,6 +1118,255 @@ const Game = (function() {
         });
     }
 
+    function displayPlayerForServerIndex(serverIndex) {
+        if (!state) return null;
+        return state.players.find(player => player.serverIndex === serverIndex) || null;
+    }
+
+    function showNetworkReward() {
+        if (!state || state.status !== "reward" || typeof GameOver === "undefined" || GameOver.isOpen()) return;
+        const overlay = byId("game-overlay");
+        const card = byId("game-overlay-card");
+        const player = state.players[0];
+        const partner = state.players[1];
+        card.replaceChildren();
+
+        const kicker = document.createElement("div");
+        kicker.className = "overlay-kicker";
+        kicker.textContent = `FLOOR ${state.floor} CLEARED`;
+        const title = document.createElement("h2");
+        title.textContent = "Choose your advantage";
+        const copy = document.createElement("div");
+        copy.className = "overlay-copy";
+        copy.textContent = partner
+            ? `${partner.name} ${partner.rewardChoice ? "has chosen." : "is choosing too."} The next floor begins when both Slayers are ready.`
+            : "Choose one advantage before the next floor.";
+        const clock = document.createElement("div");
+        clock.className = "reward-clock";
+        clock.id = "reward-clock";
+        clock.textContent = String(Math.max(0, Math.ceil(state.rewardRemaining / 1000)));
+        const columns = document.createElement("div");
+        columns.className = "reward-columns";
+        const column = document.createElement("section");
+        column.className = "reward-player";
+        column.id = `reward-player-${player.index}`;
+        const heading = document.createElement("h3");
+        heading.textContent = player.name;
+        const options = document.createElement("div");
+        options.className = "reward-options";
+        [
+            ["card", "Draw a card", "Replace one card with a rare strike."],
+            ["buff", "Train", "+12% damage and +10 max HP."],
+            ["heal", "Rest", "Recover 40 HP now."]
+        ].forEach(([id, label, description]) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "reward-button";
+            button.dataset.player = String(player.index);
+            button.dataset.reward = id;
+            const strong = document.createElement("strong");
+            strong.textContent = label;
+            const small = document.createElement("small");
+            small.textContent = description;
+            button.append(strong, small);
+            button.addEventListener("click", () => chooseReward(player.index, id));
+            options.append(button);
+        });
+        column.append(heading, options);
+        columns.append(column);
+        card.append(kicker, title, copy, clock, columns);
+        overlay.hidden = false;
+        if (player.rewardChoice) {
+            column.classList.add("complete");
+            options.querySelectorAll(".reward-button").forEach(button => {
+                button.disabled = true;
+                button.classList.toggle("chosen", button.dataset.reward === player.rewardChoice);
+            });
+        }
+    }
+
+    function applyServerState(snapshot) {
+        if (!state || !state.authoritative || !snapshot || !Array.isArray(snapshot.players)) return;
+        const previous = new Map(state.players.map(player => [player.username, player]));
+        const serverLocal = snapshot.players.find(player => player.username === localUsername);
+        const ordered = serverLocal
+            ? [serverLocal, ...snapshot.players.filter(player => player.username !== localUsername)]
+            : [...snapshot.players];
+        const previousStatus = state.status;
+        const previousFloor = state.floor;
+
+        state.status = snapshot.status;
+        state.floor = snapshot.floor;
+        state.clock = snapshot.t;
+        state.timeRemaining = snapshot.timeLeft;
+        state.rewardRemaining = snapshot.rewardEndsIn;
+        state.cheat = snapshot.cheat === true;
+        state.scaling = snapshot.scaling;
+        state.players = ordered.map((player, index) => {
+            const old = previous.get(player.username);
+            const layout = PLAYER_LAYOUT[index] || PLAYER_LAYOUT[0];
+            const lockedSlots = new Set(
+                (player.cooldowns || []).map((remaining, slot) => remaining > 0 ? slot : -1).filter(slot => slot >= 0)
+            );
+            const next = {
+                ...old,
+                index,
+                serverIndex: player.index,
+                username: player.username,
+                name: player.name,
+                sprite: layout.sprite,
+                x: layout.x,
+                y: layout.y,
+                scale: layout.scale,
+                hp: player.hp,
+                maxHp: player.maxHp,
+                shield: player.shield,
+                energy: player.energy,
+                energyMax: player.energyMax,
+                energyProgress: player.energyProgress,
+                deckCount: player.deckCount,
+                deck: [],
+                hand: (player.hand || []).map(id => cardById.get(id)).filter(Boolean).map(card => ({ ...card })),
+                lockedSlots,
+                rewardChoice: player.rewardChoice,
+                away: player.away,
+                damageBoost: player.damageBoost,
+                cheat: snapshot.cheat === true,
+                lastEnergyCharge: old && old.lastEnergyCharge != null ? old.lastEnergyCharge : -Infinity,
+                lastDeckReset: old && old.lastDeckReset != null ? old.lastDeckReset : -Infinity,
+                animation: old && old.animation ? old.animation : { name: "idle", startedAt: performance.now() }
+            };
+            if (old && old.hp > 0 && next.hp <= 0) setAnimation(next, "defeated");
+            if (old && old.hp <= 0 && next.hp > 0) setAnimation(next, "idle");
+            return next;
+        });
+
+        const enemy = snapshot.enemy;
+        const oldEnemy = state.enemy && state.enemy.id === enemy.id ? state.enemy : null;
+        state.enemy = {
+            ...ENEMIES.find(candidate => candidate.id === enemy.id),
+            ...enemy,
+            x: 640,
+            y: 160,
+            scale: 0.74,
+            attackElapsed: Math.max(0, enemy.attackDelay - enemy.nextAttackIn),
+            vulnerableUntil: state.clock + enemy.vulnerableRemaining,
+            animation: oldEnemy && oldEnemy.animation
+                ? oldEnemy.animation
+                : { name: "idle", startedAt: performance.now() }
+        };
+
+        const handSignature = state.players.map(player =>
+            `${player.username}:${player.hand.map(card => card.id).join(",")}`
+        ).join("|");
+        if (handSignature !== lastHandSignature) {
+            lastHandSignature = handSignature;
+            renderHands();
+        }
+        byId("player-hud-1").hidden = state.players.length < 2;
+        byId("mode-label").textContent = "CO-OP · 2 PLAYERS";
+        updateNames();
+        paintMeters();
+
+        if (state.status === "reward") {
+            const rewardSignature = `${state.floor}:${state.players.map(player => player.rewardChoice || "-").join(",")}`;
+            if (previousStatus !== "reward" || previousFloor !== state.floor ||
+                state.rewardSignature !== rewardSignature) {
+                state.rewardSignature = rewardSignature;
+                showNetworkReward();
+            }
+        } else if (!GameOver.isOpen()) {
+            byId("game-overlay").hidden = true;
+        }
+    }
+
+    function handleNetworkEffect(effect) {
+        if (!state || !state.authoritative || !effect) return;
+        const player = displayPlayerForServerIndex(effect.player != null ? effect.player : effect.target);
+        const target = player ? enemyTarget(player) : null;
+        const card = effect.cardId ? cardById.get(effect.cardId) : null;
+        if (effect.type === "card" && player && card) {
+            setAnimation(player, card.action === "block" ? "block" : "attack");
+            const button = player.index === 0
+                ? byId("card-hand-0").querySelector(`[data-slot="${effect.slot}"]`)
+                : null;
+            burnCard(button, card.color);
+            if (card.action === "damage" || card.action === "weaken" || card.action === "vulnerable") {
+                addProjectile(target, { x: state.enemy.x + 125, y: state.enemy.y + 105 }, {
+                    color: card.color,
+                    kind: card.action === "damage" ? "attack" : card.action === "weaken" ? "debuff" : "mark",
+                    duration: card.cost >= 3 ? 700 : 520
+                });
+                if (card.action === "damage") {
+                    addFloating(state.enemy.x + 118, state.enemy.y + 78, `-${effect.amount}`, "#ff7c9b", 20);
+                }
+            } else if (["block", "heal", "energy"].includes(card.action)) {
+                state.effects.push({ kind: card.action === "block" ? "shield" : card.action, playerIndex: player.index, age: 0, duration: 720, color: card.color });
+                const label = card.action === "block" ? `+${effect.amount} SHIELD`
+                    : card.action === "heal" ? `+${effect.amount} HP`
+                    : `+${effect.amount} ENERGY`;
+                addFloating(target.x, target.y - 42, label, card.color, 16);
+            }
+            feed(`${player.name} plays ${card.name}.`);
+            if (effect.combo) callout("SETUP COMBO! +25%");
+            Audio.play(card.action === "block" ? "block" : card.action === "damage" ? "attack" : "reward");
+        } else if (effect.type === "enemy-attack" && target) {
+            setAnimation(state.enemy, "attack");
+            addProjectile({ x: state.enemy.x + 55, y: state.enemy.y + 100 }, target, {
+                color: state.enemy.color, kind: "breath", duration: 800, size: 18
+            });
+            feed(`${state.enemy.name} attacks ${player.name}.`);
+            Audio.play("attack");
+        } else if ((effect.type === "hit" || effect.type === "block") && target) {
+            if (effect.blocked > 0) {
+                addFloating(target.x - 8, target.y - 36, `BLOCK ${effect.blocked}`, "#7bdfff", 14);
+                hudPulse(player.index, "blocked");
+            }
+            if (effect.damage > 0) {
+                addFloating(target.x + 18, target.y - 32, `-${effect.damage}`, "#ff7388", 22);
+                setAnimation(player, "hurt");
+                hudPulse(player.index, "hit");
+                burst(target.x, target.y, "#ff5976", 13);
+                Audio.play("hit");
+            } else {
+                Audio.play("block");
+            }
+        } else if (effect.type === "immune" && target) {
+            addFloating(target.x, target.y - 25, "IMMUNE", "#8ff4ff", 14);
+        } else if (effect.type === "floor") {
+            setAnimation(state.enemy, "defeated");
+            state.projectiles = [];
+            callout(`FLOOR ${effect.floor} CLEARED`);
+            Audio.play("reward");
+        } else if (effect.type === "next-floor") {
+            byId("game-overlay").hidden = true;
+            feed(`Floor ${effect.floor} begins.`);
+        } else if (effect.type === "reward" && player) {
+            feed(`${player.name} chooses ${effect.choice}.`);
+        }
+    }
+
+    function bindNetworkListeners(roomSocket) {
+        if (!roomSocket) return;
+        if (networkSocket && networkSocket !== roomSocket) {
+            networkSocket.off("game:state", applyServerState);
+            networkSocket.off("game:effect", handleNetworkEffect);
+            networkSocket.off("game:cheat", handleNetworkCheat);
+        }
+        if (networkSocket === roomSocket) return;
+        networkSocket = roomSocket;
+        networkSocket.on("game:state", applyServerState);
+        networkSocket.on("game:effect", handleNetworkEffect);
+        networkSocket.on("game:cheat", handleNetworkCheat);
+    }
+
+    function handleNetworkCheat(info) {
+        if (!state || !state.authoritative || !info) return;
+        state.cheat = info.on === true;
+        feed(`${info.by || "A Slayer"} ${state.cheat ? "enabled" : "disabled"} team cheat mode.`);
+        paintMeters();
+    }
+
     function draw(now) {
         if (!state || !context) return;
         context.clearRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -1201,26 +1429,39 @@ const Game = (function() {
         const rawDelta = Math.max(0, now - state.lastTick);
         const delta = Math.min(rawDelta, 100);
         state.lastTick = now;
-        state.clock += rawDelta;
-
-        if (state.status === "active") {
-            state.timeRemaining -= rawDelta;
-            if (state.timeRemaining <= 0) {
-                state.timeRemaining = 0;
-                finishGame(false, "The master timer reached 00:00.");
-            } else {
-                updatePlayers(rawDelta);
+        if (state.authoritative) {
+            if (state.status === "active" && state.enemy) {
+                state.timeRemaining = Math.max(0, state.timeRemaining - rawDelta);
                 state.enemy.attackElapsed += rawDelta;
-                if (state.enemy.attackElapsed >= state.enemy.attackDelay) {
-                    state.enemy.attackElapsed %= state.enemy.attackDelay;
-                    fireEnemyAttack();
+                if (state.enemy.attackElapsed > state.enemy.attackDelay) {
+                    state.enemy.attackElapsed = state.enemy.attackDelay;
                 }
+            } else if (state.status === "reward") {
+                state.rewardRemaining = Math.max(0, state.rewardRemaining - rawDelta);
+                const rewardClock = byId("reward-clock");
+                if (rewardClock) rewardClock.textContent = String(Math.ceil(state.rewardRemaining / 1000));
             }
-        } else if (state.status === "reward") {
-            const remaining = Math.max(0, state.rewardEndsAt - state.clock);
-            const clock = byId("reward-clock");
-            if (clock) clock.textContent = String(Math.ceil(remaining / 1000));
-            if (remaining <= 0) nextFloor();
+        } else {
+            state.clock += rawDelta;
+            if (state.status === "active") {
+                state.timeRemaining -= rawDelta;
+                if (state.timeRemaining <= 0) {
+                    state.timeRemaining = 0;
+                    finishGame(false, "The master timer reached 00:00.");
+                } else {
+                    updatePlayers(rawDelta);
+                    state.enemy.attackElapsed += rawDelta;
+                    if (state.enemy.attackElapsed >= state.enemy.attackDelay) {
+                        state.enemy.attackElapsed %= state.enemy.attackDelay;
+                        fireEnemyAttack();
+                    }
+                }
+            } else if (state.status === "reward") {
+                const remaining = Math.max(0, state.rewardEndsAt - state.clock);
+                const clock = byId("reward-clock");
+                if (clock) clock.textContent = String(Math.ceil(remaining / 1000));
+                if (remaining <= 0) nextFloor();
+            }
         }
 
         updateEffects(delta);
@@ -1234,6 +1475,10 @@ const Game = (function() {
 
     function toggleCheat() {
         if (!state || state.status === "over") return;
+        if (state.authoritative) {
+            if (socket && socket.connected) socket.emit("game:cheat", { on: !state.cheat });
+            return;
+        }
         const player = state.players[0];
         player.cheat = !player.cheat;
         feed(player.cheat ? `${player.name} enabled cheat mode.` : `${player.name} disabled cheat mode.`);
@@ -1266,6 +1511,7 @@ const Game = (function() {
     function start(roomSocket, startInfo, currentUser) {
         stop();
         socket = roomSocket || null;
+        localUsername = currentUser && currentUser.username;
         canvas = byId("game-canvas");
         context = canvas.getContext("2d");
         canvas.width = WORLD_WIDTH;
@@ -1279,15 +1525,32 @@ const Game = (function() {
         const localPlayer = currentUser
             ? roomPlayers.find(player => player.username === currentUser.username) || roomPlayers[0]
             : roomPlayers[0];
+        const authoritative = roomPlayers.length > 1;
         const orderedEnemies = shuffled(ENEMIES);
+        const orderedPlayers = authoritative && localPlayer
+            ? [localPlayer, ...roomPlayers.filter(player => player.username !== localPlayer.username)]
+            : roomPlayers;
         state = {
-            status: "active",
+            authoritative,
+            status: authoritative ? "waiting" : "active",
             floor: 1,
             timeRemaining: MASTER_TIME_MS,
             clock: 0,
             lastTick: performance.now(),
             rewardEndsAt: 0,
-            players: [makePlayer(0, localPlayer ? [localPlayer] : roomPlayers)],
+            rewardRemaining: 0,
+            cheat: false,
+            players: authoritative
+                ? orderedPlayers.map((player, index) => {
+                    const view = makePlayer(index, orderedPlayers);
+                    view.serverIndex = roomPlayers.findIndex(candidate => candidate.username === player.username);
+                    view.username = player.username;
+                    view.hand = [];
+                    view.deck = [];
+                    view.deckCount = 16;
+                    return view;
+                })
+                : [makePlayer(0, localPlayer ? [localPlayer] : roomPlayers)],
             enemy: null,
             enemyOrder: orderedEnemies,
             projectiles: [],
@@ -1302,12 +1565,22 @@ const Game = (function() {
         byId("game-overlay").hidden = true;
         byId("help-button").style.display = "none";
         byId("battle-feed").replaceChildren();
+        byId("player-hud-1").hidden = !authoritative;
+        byId("mode-label").textContent = authoritative ? "CO-OP · 2 PLAYERS" : "SOLO RUN";
         Audio.syncMuted();                                  // keep the sound off in the game if it was turned off in the lobby
         byId("music-toggle").textContent = Audio.muted ? "Sound off" : "Sound on";
-        spawnEnemy();
-        renderHands();
-        paintMeters();
-        feed("Click a card or press 1–4 to play it.");
+        lastHandSignature = "";
+        if (authoritative) {
+            bindNetworkListeners(socket);
+            updateNames();
+            renderHands();
+            feed("Synchronizing the co-op battle…");
+        } else {
+            spawnEnemy();
+            renderHands();
+            paintMeters();
+            feed("Click a card or press 1–4 to play it.");
+        }
         Audio.unlock();
         animationFrame = requestAnimationFrame(loop);
     }
@@ -1317,11 +1590,13 @@ const Game = (function() {
         if (animationFrame) cancelAnimationFrame(animationFrame);
         animationFrame = null;
         state = null;
+        lastHandSignature = "";
         clearTimeout(calloutTimer);
         if (canvas) context && context.clearRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
         Audio.stop();
         byId("game-overlay") && (byId("game-overlay").hidden = true);
         byId("help-button") && (byId("help-button").style.display = "");
+        byId("player-hud-1") && (byId("player-hud-1").hidden = true);
     }
 
     // Enemy HP per floor as it really is in the game (base HP times the small floor multiplier), for the How to Play pages

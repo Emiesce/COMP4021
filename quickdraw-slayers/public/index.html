@@ -147,9 +147,9 @@
             </section>
             <section class="howto-step" data-group="basics" data-shot="09-cheat">
                 <h3>9. Cheat mode</h3>
-                <p>Want to test the game? Press <kbd>C</kbd> to turn <b>cheat mode</b> on or off for yourself. You get unlimited
+                <p>Want to test the game? Press <kbd>C</kbd> to turn <b>cheat mode</b> on or off for the whole team. Both Slayers get unlimited
                 Energy, take no damage, and deal triple damage.</p>
-                <p>A <b>"CHEAT MODE ACTIVE"</b> label shows at the top left, and your partner is told you are using it.</p>
+                <p>A <b>"CHEAT MODE ACTIVE"</b> label shows at the top left, and your partner is told who changed it.</p>
             </section>
 
             <!-- CARDS: the grids are filled in by howto.js from the game's card list -->
@@ -222,7 +222,8 @@
             <section class="howto-step" data-group="enemies">
                 <h3>The three bosses</h3>
                 <p>One monster guards each floor. You meet <b>all three</b> every run, in a random order. They get stronger as you climb:
-                floor 1 has <b id="help-hp-1"></b> HP, floor 2 <b id="help-hp-2"></b> and floor 3 <b id="help-hp-3"></b>, and every attack hits <b>7 harder</b> on each new floor.</p>
+                floor 1 has <b id="help-hp-1"></b> HP, floor 2 <b id="help-hp-2"></b> and floor 3 <b id="help-hp-3"></b>, and every attack hits <b>7 harder</b> on each new floor.
+                In co-op, bosses have <b>80% more HP</b> and attacks deal <b>25% more damage</b>.</p>
                 <div class="help-enemies"></div>
                 <p class="help-tip">Tip: watch the red bar under the monster's name. When it empties, the attack lands, so block or finish it first.</p>
             </section>
@@ -296,32 +297,17 @@
             </div>
         </div>
 
-        <!-- Playable local prototype; multiplayer transport is intentionally deferred. -->
+        <!-- Shared battlefield for local solo and server-authoritative co-op. -->
         <div id="game-view" style="display: none">
             <div class="battlefield-shell">
                 <div class="canvas-frame">
                     <canvas id="game-canvas" width="960" height="540" aria-label="QuickDraw Slayers battle"></canvas>
 
                     <div class="battle-top-hud">
-                        <aside class="fighter-hud" id="player-hud-0" aria-label="Slayer status">
-                            <div class="fighter-heading">
-                                <img src="/images/sprites/grade_farmer.png" alt="">
-                                <div><span class="eyebrow">YOUR SLAYER</span><strong id="player-name-0">Grade Farmer</strong></div>
-                            </div>
-                            <div class="meter-row"><span>HP</span><div class="meter hp-meter"><i id="player-hp-0"></i></div><strong id="player-hp-text-0">100 / 100</strong></div>
-                            <div class="meter-row shield-row"><span>BLOCK</span><div class="meter shield-meter"><i id="player-shield-0"></i></div><strong id="player-shield-text-0">0</strong></div>
-                            <div class="energy-row">
-                                <span>ENERGY</span>
-                                <div class="energy-pips" id="player-energy-0" aria-label="Energy"></div>
-                                <strong id="player-energy-text-0">3 / 3</strong>
-                            </div>
-                            <div class="status-strip player-status-strip" id="player-status-0"></div>
-                        </aside>
-
                         <div class="master-clock" id="master-clock" aria-label="Floor and time remaining">
                             <span class="eyebrow">FLOOR <span id="floor-number">1</span> OF 3</span>
                             <strong id="master-clock-value">04:00</strong>
-                            <span class="prototype-chip">SOLO RUN</span>
+                            <span class="prototype-chip" id="mode-label">SOLO RUN</span>
                         </div>
 
                         <div class="enemy-hud">
@@ -338,6 +324,36 @@
                             <div class="meter attack-meter"><i id="enemy-attack-timer"></i></div>
                             <div class="status-strip" id="enemy-statuses"></div>
                         </div>
+                    </div>
+
+                    <div class="slayer-status-layer" aria-label="Slayer status">
+                        <aside class="fighter-hud slayer-hud slayer-0" id="player-hud-0">
+                            <div class="meter hp-meter" aria-label="Health">
+                                <i id="player-hp-0"></i>
+                                <strong id="player-hp-text-0">100 / 100</strong>
+                            </div>
+                            <div class="energy-row">
+                                <div class="energy-pips" id="player-energy-0" aria-label="Energy"></div>
+                            </div>
+                            <span class="shield-badge" id="player-shield-badge-0" aria-label="Shield" hidden>
+                                <svg viewBox="0 0 40 48" aria-hidden="true"><path d="M20 2 36 8v13c0 11-6.8 20.1-16 25C10.8 41.1 4 32 4 21V8Z"/><path class="shield-shine" d="m20 6 12 4.5V21c0 8.4-4.6 15.1-12 19.8Z"/></svg>
+                                <strong id="player-shield-text-0">0</strong>
+                            </span>
+                        </aside>
+
+                        <aside class="fighter-hud slayer-hud slayer-1" id="player-hud-1" hidden>
+                            <div class="meter hp-meter" aria-label="Health">
+                                <i id="player-hp-1"></i>
+                                <strong id="player-hp-text-1">100 / 100</strong>
+                            </div>
+                            <div class="energy-row">
+                                <div class="energy-pips" id="player-energy-1" aria-label="Partner energy"></div>
+                            </div>
+                            <span class="shield-badge" id="player-shield-badge-1" aria-label="Shield" hidden>
+                                <svg viewBox="0 0 40 48" aria-hidden="true"><path d="M20 2 36 8v13c0 11-6.8 20.1-16 25C10.8 41.1 4 32 4 21V8Z"/><path class="shield-shine" d="m20 6 12 4.5V21c0 8.4-4.6 15.1-12 19.8Z"/></svg>
+                                <strong id="player-shield-text-1">0</strong>
+                            </span>
+                        </aside>
                     </div>
 
                     <div class="combo-callout" id="combo-callout" aria-live="polite"></div>
@@ -367,6 +383,7 @@
 <script src="scripts/howto.js"></script>
 <script src="scripts/gameover.js"></script>
 <script src="scripts/lobby.js"></script>
+<script src="scripts/game_data.js"></script>
 <script src="scripts/game.js"></script>
 <script>
 $(function() {

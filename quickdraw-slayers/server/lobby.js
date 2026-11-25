@@ -121,7 +121,16 @@ module.exports = function(io) {
         room.resultSaved = true;
         try {
             const saved = leaderboard.record(result);
-            if (saved) io.to(room.id).emit("game:over", { entry: saved.entry, rank: saved.rank, total: saved.total });
+            if (saved) {
+                const reason = typeof result.reason === "string"
+                    ? result.reason.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 100)
+                    : "";
+                io.to(room.id).emit("game:over", {
+                    entry: reason ? { ...saved.entry, reason } : saved.entry,
+                    rank: saved.rank,
+                    total: saved.total
+                });
+            }
         } catch (err) {
             console.error("Could not save the result:", err);
         }
@@ -358,7 +367,20 @@ module.exports = function(io) {
             }
         });
 
-        // Multiplayer combat events will be added here; the current client runs a local prototype.
+        on("game:play", (payload) => {
+            const room = rooms.get(socket.data.roomId);
+            if (room && room.status === "playing" && room.game) room.game.play(socket.id, payload);
+        });
+
+        on("game:reward", (payload) => {
+            const room = rooms.get(socket.data.roomId);
+            if (room && room.status === "playing" && room.game) room.game.chooseReward(socket.id, payload);
+        });
+
+        on("game:cheat", (payload) => {
+            const room = rooms.get(socket.data.roomId);
+            if (room && room.status === "playing" && room.game) room.game.setCheat(socket.id, payload);
+        });
 
         socket.on("disconnect", (reason) => {
             console.log("Player disconnected:", user.username, socket.id, `(${reason})`);
