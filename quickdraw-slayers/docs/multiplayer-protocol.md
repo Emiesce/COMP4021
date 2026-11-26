@@ -1,7 +1,7 @@
 # Multiplayer protocol
 
-The lobby owns accounts and rooms. Two-player combat is owned by `server/game.js`, which is authoritative for
-hands, Energy, HP, cooldowns, damage, rewards, the master timer, and results. Solo combat remains client-local.
+The lobby owns accounts and rooms. Combat is owned by `server/game.js`, which is authoritative for
+hands, Energy, HP, cooldowns, damage, rewards, the master timer, and results, for solo (one Slayer) and co-op (two Slayers) alike. A browser never reports a result.
 
 ## 1. Who does what
 
@@ -9,10 +9,10 @@ hands, Energy, HP, cooldowns, damage, rewards, the master timer, and results. So
 |---|---|---|
 | Accounts, sessions, sign-in | `game_server.js`, `server/store.js` | done |
 | Lobby, rooms, ready, countdown, rejoin | `server/lobby.js` | done |
-| **Game logic for a two-player room (server-authoritative)** | `server/game.js` | done |
+| **Game logic for a room (server-authoritative)** | `server/game.js` | done |
 | Leaderboard (ranking, saving) | `server/leaderboard.js` | done |
 | Result screen | `public/scripts/gameover.js` | done |
-| Game rendering and input | `public/scripts/game.js` | solo local; co-op snapshots/effects |
+| Game rendering and input | `public/scripts/game.js` | draws server snapshots/effects (solo and co-op) |
 | Shared combat definitions | `public/scripts/game_data.js` | done |
 
 ## 2. Lifecycle of a room
@@ -42,7 +42,12 @@ The `game` object returned by `create` must have: `start()`, `playerLeft(player)
 Two-player enemies use `1 + 0.8 * (playerCount - 1)` health and
 `1 + 0.25 * (playerCount - 1)` damage. With two players this is 1.8x HP and 1.25x damage. Attacks rotate
 between connected, living Slayers; if one Slayer is temporarily away, the other is the target. A downed
-Slayer returns with half HP on the next floor, while both Slayers down is a defeat.
+Slayer returns with half HP on the next floor (a "Rest" or "Train" reward chosen while down does not change that),
+while both Slayers down is a defeat.
+
+On screen, each server seat is always the same character on every client: seat 0 (the player who created the room) is
+the straw-hat Grade Farmer on the left, seat 1 is the Deadline Fighter on the right. Each client still keeps its own
+Slayer's hand and HUD first, and labels the characters "YOU · name" and the partner's name.
 
 ## 4. The result object (what you pass to `onOver`)
 
@@ -51,6 +56,7 @@ onOver({
     won: true,              // true only when all 3 floors were cleared
     floors: 3,              // floors cleared, 0 to 3
     durationMs: 187000,     // how long the run lasted
+    cheated: false,         // true if cheat mode was switched on at any point (the run is then not ranked)
     players: [              // 1 or 2 entries
         { username: "alice", name: "Alice",
           damage: 812,      // damage dealt to enemies
@@ -62,7 +68,9 @@ onOver({
 ```
 
 `lobby.js` forces `username` and `name` from the account, clamps every number (see `server/leaderboard.js`), saves the run,
-and emits `game:over { entry, rank, total }` to the room. `rank` is null if the run did not make the top 100.
+and emits `game:over { entry, rank, total, unranked }` to the room. `rank` is null if the run did not make the top 100.
+`unranked` is `"cheat"` (cheat mode was used) or `"idle"` (nobody played a card) when the run is shown to the players but
+deliberately **not** saved on the leaderboard; otherwise it is null.
 Call `onOver` only once per game (a second call for the same room is ignored).
 
 ## 5. Ranking rule
@@ -89,7 +97,7 @@ A snapshot is the whole truth, so a player who reconnects can be caught up with 
 ```js
 { t: 183000, floor: 2, status: "active", timeLeft: 57000, rewardEndsIn: 0,
   enemy: { id, hp, maxHp, nextAttackIn, vulnerableRemaining, weaknessAttacks },
-  players: [{ username, hp, shield, energy, energyMax, hand: [cardIds], cooldowns: [...], rewardChoice, away }],
+  players: [{ username, hp, shield, energy, energyMax, hand: [cardIds], cooldowns: [...], rewardChoice, away, awayEndsIn }],
   scaling: { playerCount: 2, health: 1.8, damage: 1.25 },
   cheat: false }
 ```
@@ -106,15 +114,15 @@ Clients to server:
 
 `lobby.js` already keeps a player's seat for `GRACE_MS` after a drop and calls `playerRejoined(player)` when they come back.
 While a player is away, their Energy recovery pauses and attacks target the connected partner while possible. The
-master timer and enemy cadence continue. On rejoin, send a fresh `game:state` to that socket only.
+master timer and enemy cadence continue. `awayEndsIn` (ms) is how long their seat is still held; the client shows it in a
+"Bob lost connection… 7s" banner. On rejoin, send a fresh `game:state` to that socket only.
 If the grace period ends, `lobby.js` calls `playerLeft`, and the room ends without a saved result.
 
-## 8. The temporary `game:report` event
+## 8. Solo
 
-Solo still runs in the browser, so `public/scripts/game.js` sends `game:report` with its result and `lobby.js` accepts it
-only for a one-player room that is playing. Two-player results never come from a browser. When solo also runs on the
-server, delete the `game:report` handler in `lobby.js` and the one `socket.emit("game:report", ...)` line in `game.js`,
-and remove the matching checks in `test/platform.test.js`.
+A solo run is the same game with one Slayer: `lobby:solo` makes a one-player room and `server/game.js` runs it exactly
+like a co-op room (scaling 1x HP and 1x damage). The browser cannot send a score: there is no `game:report` event, so a
+leaderboard entry can only come from `onOver(result)`.
 
 ## 9. Testing
 

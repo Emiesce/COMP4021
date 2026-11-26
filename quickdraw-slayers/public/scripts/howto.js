@@ -9,11 +9,9 @@
 //   optional (the yellow ? button): all groups, tabs, X button, Escape and clicking the dark background close it.
 //   required (new players): only the basics, no tabs and no way to skip. Back/Next only, Done on the last page.
 //
-// Each basics page with data-shot="NAME" looks for an image in public/images/howto/ called
-// NAME.gif, NAME.png or NAME.jpg. Drop your screenshots/GIFs there and they appear automatically;
-// until then a placeholder box is shown.
+// Each basics page with data-shot="FILE" shows public/images/howto/FILE (a .gif or .png captured from the
+// real game) under its heading. If a picture is missing, the page simply shows its text without one.
 const HowTo = (function() {
-    const EXTENSIONS = ["gif", "png", "jpg"];
     const TYPE_LABEL = { ATTACK: "Attack", BLOCK: "Block", UTILITY: "Utility" };
     const ENEMY_BLURB = {
         enemy_typhoon: "Steady, lighter hits. The easiest one to out-block.",
@@ -38,18 +36,12 @@ const HowTo = (function() {
     let steps = [];                 // the pages shown in the current mode, in order
 
     const loadShot = function($step) {
-        const name = $step.data("shot");
-        if (!name) return;
-        const $box = $("<div class='shot placeholder'>").text(`Screenshot/GIF goes here: images/howto/${name}.gif`);
-        $step.append($box);
-        const tryNext = (i) => {
-            if (i >= EXTENSIONS.length) return;
-            const img = new Image();
-            img.onload = () => $box.empty().removeClass("placeholder").append(img);
-            img.onerror = () => tryNext(i + 1);
-            img.src = `images/howto/${name}.${EXTENSIONS[i]}`;
-        };
-        tryNext(0);
+        const file = $step.data("shot");
+        if (!file) return;
+        const img = new Image();
+        img.alt = $step.find("h3").first().text();
+        img.onload = () => $step.find("h3").first().after($("<div class='shot'>").append(img));
+        img.src = `images/howto/${file}`;           // if the file is missing the page just shows its text
     };
 
     // Card pages: one tile per card of that type, taken from the game's own card list
@@ -86,6 +78,32 @@ const HowTo = (function() {
             ).appendTo($grid);
         });
         (Game.FLOOR_HEALTH || []).forEach((hp, i) => $("#help-hp-" + (i + 1)).text(hp));
+    };
+
+    // Example Hall of Slayers on the "leaderboard" page: a few made-up runs, one solo and the rest co-op,
+    // drawn with the same classes as the real list in the lobby
+    const SAMPLE_RUNS = [
+        { names: "Alice & Bob", won: true, floors: 3, time: "02:41", damage: 822 },
+        { names: "Chloe", won: true, floors: 3, time: "03:12", damage: 655 },
+        { names: "Erin & Finn", won: true, floors: 3, time: "03:41", damage: 643 },
+        { names: "Gina", won: false, floors: 2, time: "02:38", damage: 512 },
+        { names: "Hugo & Iris", won: false, floors: 1, time: "01:36", damage: 258 }
+    ];
+    const buildLeaderboardExample = function() {
+        const $box = $("#help-leaderboard").empty();
+        $("<div class='lb-row lb-head'>").append(
+            $("<span>").text("Rank"), $("<span>").text("Slayers"), $("<span>").text("Mode"),
+            $("<span>").text("Result"), $("<span>").text("Time"), $("<span>").text("Damage")).appendTo($box);
+        SAMPLE_RUNS.forEach((run, i) => {
+            const team = run.names.indexOf("&") >= 0;
+            $("<div class='lb-row'>").toggleClass("lb-win", run.won).append(
+                $("<span class='lb-rank'>").text("#" + (i + 1)),
+                $("<span class='lb-names'>").text(run.names),
+                $("<span class='lb-tag'>").addClass(team ? "team" : "solo").text(team ? "TEAM" : "SOLO"),
+                $("<span class='lb-result'>").text(run.won ? "Victory" : "Fell on floor " + (run.floors + 1)),
+                $("<span class='lb-time'>").text(run.time),
+                $("<span class='lb-damage'>").text(run.damage + " dmg")).appendTo($box);
+        });
     };
 
     const groupOf = (i) => $(steps[i]).data("group");
@@ -147,6 +165,7 @@ const HowTo = (function() {
         $(".howto-step").each(function() { loadShot($(this)); });
         buildCards();
         buildEnemies();
+        buildLeaderboardExample();
         setup(false);
         showStep(0);
 

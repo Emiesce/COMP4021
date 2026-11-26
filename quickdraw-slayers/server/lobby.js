@@ -17,7 +17,6 @@
 //   room:leave            leave the room
 //   lobby:ready bool?     set (or toggle) your ready flag
 //   lobby:solo            start a one-player run
-//   game:report result    TEMPORARY, solo only: the browser reports its own solo result (see below)
 //   rooms:request         ask for the open-room list again
 // Socket.IO events (server -> client):
 //   rooms:list [{id,name,count,max}]
@@ -27,7 +26,7 @@
 //   room:left / room:error "message"
 //   session:replaced                   this account connected somewhere else
 //   game:start {roomId, players}       the game begins
-//   game:over {entry, rank, total}     the run was saved: the final result and where it ranks on the leaderboard
+//   game:over {entry, rank, total, unranked}     the run was saved: the final result and where it ranks on the leaderboard
 const Game = require("./game");
 const leaderboard = require("./leaderboard");
 
@@ -128,7 +127,8 @@ module.exports = function(io) {
                 io.to(room.id).emit("game:over", {
                     entry: reason ? { ...saved.entry, reason } : saved.entry,
                     rank: saved.rank,
-                    total: saved.total
+                    total: saved.total,
+                    unranked: saved.unranked        // null, "cheat" or "idle": why the run was not put on the leaderboard
                 });
             }
         } catch (err) {
@@ -232,6 +232,7 @@ module.exports = function(io) {
     const markAway = (room, player) => {
         if (player.away) return;
         player.away = true;
+        player.awayUntil = Date.now() + GRACE_MS;       // lets the game show the partner a "reconnecting" countdown
         cancelCountdown(room, false);
         room.players.forEach(p => { p.ready = false; });
         notify(room, "away", player);
@@ -248,6 +249,7 @@ module.exports = function(io) {
         const wasAway = player.away;
         if (player.awayTimer) { clearTimeout(player.awayTimer); player.awayTimer = null; }
         player.away = false;
+        player.awayUntil = 0;
         player.socketId = socket.id;
         socket.data.roomId = room.id;
         socket.join(room.id);
@@ -335,19 +337,6 @@ module.exports = function(io) {
             const err = joinError(socket, room);
             if (err) { socket.emit("room:error", err); return; }
             joinRoom(socket, room);
-        });
-
-        // TEMPORARY: until the server runs the solo game itself, the browser tells us how a solo run ended.
-        // Only accepted once per run, only for a room with one player in a running game. A two-player result
-        // is never taken from a browser: server/game.js hands it to onOver(result) instead.
-        on("game:report", (result) => {
-            const room = rooms.get(socket.data.roomId);
-            if (!room || room.status !== "playing" || room.players.length !== 1) return;
-            if (!result || typeof result !== "object") return;
-            const player = room.players[0];
-            const reported = Array.isArray(result.players) && result.players[0] ? result.players[0] : {};
-            // The name on the leaderboard is the account's, whatever the browser says
-            saveResult(room, { ...result, players: [{ ...reported, username: player.username, name: player.name }] });
         });
 
         on("room:leave", () => leaveRoom(socket, true));

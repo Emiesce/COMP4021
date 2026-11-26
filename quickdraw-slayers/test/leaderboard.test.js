@@ -40,6 +40,17 @@ check(order.join(",") === "FastWin,SlowWin,LossMoreDamage,LossFloor2,EarlyLoss",
 check(lb.top(10).every((e, i) => e.rank === i + 1), "ranks are numbered 1, 2, 3, ...");
 check(lb.record(run(true, 3, 100000, 100, "Best")).rank === 1, "a new best run takes rank 1");
 
+// 2b. Cheat runs and idle runs are not ranked and not saved
+reset();
+const cheatRun = { ...run(true, 3, 60000, 5000, "Cheater"), cheated: true };
+const cheated = lb.record(cheatRun);
+check(cheated && cheated.rank === null && cheated.unranked === "cheat", "a run that used cheat mode is marked unranked (cheat)");
+const idleRun = lb.record({ won: false, floors: 0, durationMs: 90000,
+    players: [{ username: "idle", name: "Idle", damage: 0, blocked: 0, cards: 0, survivalMs: 90000 }] });
+check(idleRun && idleRun.rank === null && idleRun.unranked === "idle", "a run where nobody played a card is marked unranked (idle)");
+check(lb.top(10).length === 0, "unranked runs are not written to the leaderboard");
+check(lb.record({ ...run(true, 3, 100000, 100, "Honest"), cheated: false }).rank === 1, "a normal run with cheated: false is ranked");
+
 // 3. Two players: total damage decides ties, the entry is co-op
 reset();
 const coop = lb.record({ won: true, floors: 3, durationMs: 200000, players: [

@@ -8,5 +8,10 @@
   "name": "p2",
   "password": "$argon2id$v=19$m=65536,t=3,p=4$khTCnYfoyNRHsckrDOc4Hw$e55+83E9ZiFSPoIvF92fCcvs9Fw7WyJJT1LGxrHAhUQ",
   "seenGuide": true
+ },
+ "p3": {
+  "name": "p3",
+  "password": "$argon2id$v=19$m=65536,t=3,p=4$3pzRTze/fnzq/XNVqDtNeA$03FqGasPVmmblJ8Nxo3ETNtzGTGouCv9HrYwwdEbWyw",
+  "seenGuide": true
  }
 }

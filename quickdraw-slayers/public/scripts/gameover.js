@@ -98,9 +98,15 @@ const GameOver = (function() {
     const setRank = function(info) {
         const node = document.getElementById("go-rank");
         if (!node || !info) return;
-        node.textContent = info.rank
-            ? `Leaderboard rank: #${info.rank} of ${info.total}`
-            : `Not in the top ${info.total} runs`;
+        const notRanked = {
+            cheat: "Cheat mode was used, so this run is not ranked.",
+            idle: "No cards were played, so this run is not ranked."
+        };
+        node.textContent = info.unranked && notRanked[info.unranked]
+            ? notRanked[info.unranked]
+            : info.rank
+                ? `Leaderboard rank: #${info.rank} of ${info.total}`
+                : `Not in the top ${info.total} runs`;
         node.classList.add("saved");
     };
 

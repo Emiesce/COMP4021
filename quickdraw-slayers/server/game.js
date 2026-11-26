@@ -31,7 +31,6 @@ function create(io, room, onOver) {
     let lastTick = 0;
     let finished = false;
     const playerCount = room.players.length;
-    const authoritative = playerCount > 1;
 
     const emitRoom = (event, payload) => io.to(room.id).emit(event, payload);
     const emitEffect = (effect) => emitRoom("game:effect", effect);
@@ -167,7 +166,8 @@ function create(io, room, onOver) {
                     cooldowns: player.lockedUntil.map(until => Math.max(0, until - now)),
                     damageBoost: player.damageBoost,
                     rewardChoice: player.rewardChoice,
-                    away: Boolean(member && member.away)
+                    away: Boolean(member && member.away),
+                    awayEndsIn: member && member.away && member.awayUntil ? Math.max(0, member.awayUntil - now) : 0
                 };
             })
         };
@@ -190,6 +190,7 @@ function create(io, room, onOver) {
         const result = {
             won,
             reason,
+            cheated: state.cheatUsed,               // cheat mode was on at some point: the run is not ranked
             floors: state.floorsCleared,
             durationMs: Math.max(0, Math.round(state.durationMs)),
             players: state.players.map(player => ({
@@ -234,7 +235,7 @@ function create(io, room, onOver) {
 
     const checkDefeat = () => {
         if (state.players.every(player => player.hp <= 0)) {
-            finish(false, "Both Slayers fell.");
+            finish(false, playerCount > 1 ? "Both Slayers fell." : "Your Slayer fell.");
             return true;
         }
         return false;
@@ -354,7 +355,7 @@ function create(io, room, onOver) {
     };
 
     const play = (socketId, payload) => {
-        if (!authoritative || !state || finished || state.status !== "active") return false;
+        if (!state || finished || state.status !== "active") return false;
         if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
         const player = playerForSocket(socketId);
         if (!player || player.hp <= 0) return false;
@@ -419,7 +420,7 @@ function create(io, room, onOver) {
     };
 
     const chooseReward = (socketId, payload) => {
-        if (!authoritative || !state || finished || state.status !== "reward") return false;
+        if (!state || finished || state.status !== "reward") return false;
         if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false;
         const choice = payload.choice;
         if (!VALID_REWARDS.has(choice)) return false;
@@ -438,9 +439,10 @@ function create(io, room, onOver) {
         } else if (choice === "buff") {
             player.damageBoost += 0.12;
             player.maxHp += 10;
-            player.hp = Math.min(player.maxHp, player.hp + 10);
+            if (player.hp > 0) player.hp = Math.min(player.maxHp, player.hp + 10);
         } else if (choice === "heal") {
-            player.hp = Math.min(player.maxHp, player.hp + 40);
+            // A downed Slayer is not healed here: they come back with half HP on the next floor (see spawnEnemy)
+            if (player.hp > 0) player.hp = Math.min(player.maxHp, player.hp + 40);
         }
         emitEffect({ type: "reward", player: player.index, choice });
         sendState();
@@ -448,11 +450,12 @@ function create(io, room, onOver) {
     };
 
     const setCheat = (socketId, payload) => {
-        if (!authoritative || !state || finished || !payload || typeof payload !== "object") return false;
+        if (!state || finished || !payload || typeof payload !== "object") return false;
         if (typeof payload.on !== "boolean") return false;
         const player = playerForSocket(socketId);
         if (!player || state.cheat === payload.on) return false;
         state.cheat = payload.on;
+        if (state.cheat) state.cheatUsed = true;
         emitRoom("game:cheat", { on: state.cheat, by: player.username });
         sendState();
         return true;
@@ -460,7 +463,7 @@ function create(io, room, onOver) {
 
     return {
         start() {
-            if (!authoritative || state || finished) return;
+            if (state || finished) return;
             state = {
                 status: "active",
                 floor: 1,
@@ -470,6 +473,7 @@ function create(io, room, onOver) {
                 durationMs: 0,
                 statusUntil: 0,
                 cheat: false,
+                cheatUsed: false,
                 lastUtilityAt: null,
                 enemyOrder: shuffle(ENEMIES.map(enemy => ({ ...enemy }))),
                 players: room.players.map(makePlayer),
@@ -490,14 +494,10 @@ function create(io, room, onOver) {
         chooseReward,
         setCheat,
         playerLeft() {
-            if (authoritative) endAborted();
-            else if (!finished && onOver) {
-                finished = true;
-                onOver();
-            }
+            endAborted();
         },
         playerRejoined(oldSocketId, newSocketId) {
-            if (!authoritative || !state || finished) return;
+            if (!state || finished) return;
             const player = playerForSocket(oldSocketId);
             if (!player) return;
             player.socketId = newSocketId;

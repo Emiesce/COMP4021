@@ -1,32 +1,84 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>QuickDraw Slayers - README</title></head>
-<body style="font-family: sans-serif; max-width: 800px; margin: 30px auto;">
+<html lang="en"><head><meta charset="utf-8"><title>QuickDraw Slayers - README</title>
+<style>
+body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 860px; margin: 30px auto; padding: 0 16px; line-height: 1.55; color: #222; }
+h1 { margin-bottom: 4px; } h2 { margin-top: 32px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+code, kbd { background: #f2f2f2; padding: 1px 5px; border-radius: 4px; }
+table { border-collapse: collapse; margin: 8px 0; } td, th { border: 1px solid #ccc; padding: 4px 10px; text-align: left; }
+</style></head>
+<body>
 <h1>QuickDraw Slayers</h1>
-<h2>Run</h2>
+<p>A real-time card battle for one or two players (COMP4021 group project). You are a Slayer fighting exam monsters on three floors of the HKUST Jockey Club Atrium. Play cards, block the enemy's telegraphed attacks and clear all three floors before the 4:00 master timer runs out. Play <b>solo</b> or <b>co-op</b> over the network with a partner. There are no turns: every card takes effect the moment it is played.</p>
+
+<h2>Run it</h2>
 <ol>
-  <li><code>npm install</code></li>
-  <li><code>node game_server.js</code></li>
-  <li>Open <a href="http://localhost:8000">http://localhost:8000</a> in two browsers (or one normal + one private window).</li>
+  <li>Install <a href="https://nodejs.org">Node.js</a> 18 or newer.</li>
+  <li>In this folder: <code>npm install</code></li>
+  <li><code>node game_server.js</code> (or <code>npm start</code>)</li>
+  <li>Open <a href="http://localhost:8000">http://localhost:8000</a>. For co-op, open it a second time in another browser, or in a private window (a different login session).</li>
 </ol>
-<p>Register an account, read the How to Play guide, then sign in.</p>
+<p>Register an account, read the How to Play guide (new players must finish it once), then sign in. The server uses port 8000 unless the <code>PORT</code> environment variable is set.</p>
+
+<h2>How to play</h2>
+<p>The full guide, with screenshots and GIFs recorded from the game, is in the game itself: register, or press the yellow <b>?</b> button after you sign in.</p>
+<table>
+<tr><th>Action</th><th>Control</th></tr>
+<tr><td>Play a card</td><td>click it, or press <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd></td></tr>
+<tr><td>Cheat mode on/off (whole team)</td><td><kbd>C</kbd></td></tr>
+<tr><td>Sound on/off</td><td>the button at the top right (lobby and game)</td></tr>
+</table>
+<ul>
+  <li><b>Goal:</b> beat the boss on each of the 3 floors before the 4:00 timer ends. All Slayers falling, or the timer reaching 0:00, is Defeat.</li>
+  <li><b>Hand and Energy:</b> you hold 4 cards; a played card is replaced from a pool of 10 cards (attacks, blocks, utilities). Energy holds 4 / 5 / 6 on floors 1 / 2 / 3, starts full on each floor and refills <b>1 every 1.8 s</b>.</li>
+  <li><b>Enemies:</b> three bosses (Campus Typhoon, Feral Firebird, Thesis Dragon), one per floor, in a random order. Each has an attack timer bar; when it empties it hits one Slayer (with a partner, the attacks take turns). Bosses get stronger on each floor, and in co-op have 80% more HP and deal 25% more damage.</li>
+  <li><b>Shield:</b> block cards give Shield (max 60) which absorbs damage before HP.</li>
+  <li><b>Combos:</b> Group Project or Bell Curve followed by any attack within about 2 s gives +25%. Bell Curve makes the enemy take 45% more damage for 8 s. Group Project makes its next 2 attacks 35% weaker. Extension gives 2 Energy to every Slayer.</li>
+  <li><b>Between floors:</b> a 5 s reward screen (main timer paused): <i>Draw a card</i>, <i>Train</i> (+12% damage, +10 max HP) or <i>Rest</i> (+40 HP).</li>
+  <li><b>Downed Slayers:</b> a Slayer at 0 HP spectates; if the partner clears the floor they return on the next floor with half HP.</li>
+  <li><b>Cheat mode (<kbd>C</kbd>):</b> applies to the <b>whole team</b>: unlimited Energy, no damage taken, triple damage. A "CHEAT MODE ACTIVE" label shows at the top left and the partner sees who switched it. Runs that used cheat mode are not ranked.</li>
+</ul>
+
+<h2>Game over and the leaderboard</h2>
+<p>The result screen shows Victory or Defeat, floors cleared, run time and, for each Slayer, damage dealt, damage blocked, cards played and survival time, plus the run's leaderboard rank. <b>Play again</b> starts a new run (a rematch with the same partner in co-op) and <b>Home</b> returns to the lobby.</p>
+<p>The <b>Hall of Slayers</b> in the lobby shows the top 10 runs of all players; <b>solo and co-op runs share one board</b> (one name is a solo run, two names a team run). Runs are ranked best first by:</p>
+<ol>
+  <li>a win beats any loss;</li>
+  <li>more floors cleared;</li>
+  <li>wins: the faster time, then more total damage. Losses: more total damage, then the faster time.</li>
+</ol>
+<p>Runs that used cheat mode, or where nobody played a card, are not saved. The best 100 runs are kept in <code>data/leaderboard.json</code>.</p>
+
+<h2>How it works</h2>
+<ul>
+  <li><b>Server-authoritative game:</b> <code>server/game.js</code> runs every battle, solo and co-op, on the server (hands, Energy, HP, cooldowns, damage, rewards, timers, results). Browsers only send intents (play a slot, pick a reward, toggle cheat) and draw the snapshots they receive over Socket.IO, so a browser cannot report a score or change a result.</li>
+  <li><b>Accounts and sessions:</b> register / sign in with argon2-hashed passwords, a server-side session (15 minutes, kept alive while a page is open), input validation on client and server, and a limiter for repeated failed sign-ins. Socket.IO shares the same session, so only signed-in users can connect.</li>
+  <li><b>Lobby:</b> live room list, create / join a room, ready buttons, a 3-2-1 countdown, a 10 second grace period if a player's connection drops (the game waits and shows a banner) and automatic return to the room or game after a page refresh.</li>
+  <li>The shared game numbers (<code>public/scripts/game_data.js</code>) are used by both the server and the browser. The message list is in <code>docs/multiplayer-protocol.md</code>.</li>
+</ul>
+
 <h2>Files</h2>
 <ul>
-  <li><b>game_server.js</b> - Express, sessions, register / sign in / validate / guide-complete / sign out, sign-in limits, Socket.IO (shares the login session)</li>
-  <li><b>server/store.js</b> - data files (creates them if missing, atomic writes)</li>
+  <li><b>game_server.js</b> - Express app: register, sign in, validate, guide-complete, sign out, <code>/leaderboard</code>, sign-in limits, Socket.IO setup (shares the login session)</li>
+  <li><b>server/store.js</b> - JSON data files in <code>data/</code> (created if missing, atomic writes)</li>
   <li><b>server/ratelimit.js</b> - "too many failed attempts" limiter</li>
-  <li><b>server/lobby.js</b> - rooms, pairing, ready, countdown, rejoin after a refresh (event list at the top of the file)</li>
-  <li><b>server/game.js</b> - per-room lifecycle boundary for the multiplayer game</li>
-  <li><b>public/</b> - index.html, style.css, scripts/ (game_room.js accounts, howto.js guide, lobby.js lobby, game.js playable canvas prototype)</li>
-  <li><b>test/platform.test.js</b> - automated checks for accounts, sessions, rooms and rejoin</li>
+  <li><b>server/lobby.js</b> - rooms, pairing, ready, countdown, rejoin and grace period, starting and finishing games</li>
+  <li><b>server/game.js</b> - the authoritative battle for one room (solo or co-op)</li>
+  <li><b>server/leaderboard.js</b> - ranking rules, cleaning of results, saving the best runs</li>
+  <li><b>public/index.html, style.css</b> - all pages: sign-in / register, How to Play, lobby, room, battle, game over</li>
+  <li><b>public/scripts/game_room.js</b> - accounts and sessions in the browser; <b>howto.js</b> - How to Play guide; <b>lobby.js</b> - lobby, rooms, Hall of Slayers, music; <b>game.js</b> - battle canvas, sprites, effects, sound; <b>game_data.js</b> - shared card, enemy and balance data; <b>gameover.js</b> - result screen</li>
+  <li><b>public/images/</b> - backgrounds, sprites, card art; <b>images/howto/</b> - the GIFs and screenshots used by How to Play, recorded from the game</li>
+  <li><b>public/sounds/</b> - <code>lobby_theme.mp3</code> (lobby music), <code>boss_music_1.mp3</code> (battle music) and the short effect sounds <code>attack.wav</code>, <code>block.wav</code>, <code>hit.wav</code>, <code>reward.wav</code>, <code>victory.wav</code>, <code>defeat.wav</code>, <code>error.wav</code> (generated by us)</li>
+  <li><b>test/</b> - <code>leaderboard.test.js</code>, <code>game.test.js</code>, <code>platform.test.js</code></li>
+  <li><b>docs/multiplayer-protocol.md</b> - Socket.IO events and the result format</li>
+  <li><b>data/</b> - <code>users.json</code> (accounts) and <code>leaderboard.json</code> (best runs); both are created automatically if missing</li>
 </ul>
-<h2>Accounts</h2>
-<p>Accounts are stored in <code>data/users.json</code> (passwords hashed with argon2). The file is created automatically if it is missing.</p>
+
 <h2>Tests</h2>
-<p><code>npm test</code> starts a separate server on port 8123 with a temporary data folder and prints PASS / FAIL lines.</p>
-<h2>Gameplay prototype</h2>
-<p>Choose <b>Play Solo</b> in the lobby to open a one-player canvas battle immediately. Click
-a card or use <kbd>1</kbd>-<kbd>4</kbd>; the complete three-floor loop is playable without
-waiting for another account or connecting combat state over Socket.IO.</p>
+<p><code>npm test</code> runs three suites and prints PASS / FAIL lines: the ranking rules and file handling, the battle rules (fast-forwarded: rewards, downed players, cheat, defeat results), and the platform (accounts, sessions, rooms, rejoin, solo and co-op runs through a real server on port 8123 with a temporary data folder).</p>
+
+<h2>Starting fresh</h2>
+<p>To clear all accounts and scores, stop the server and delete <code>data/users.json</code> and <code>data/leaderboard.json</code> (or set them to <code>{}</code> and <code>[]</code>).</p>
+
 <h2>Credits</h2>
-<p>Infrastructure adapted from COMP4021 Labs 5 (accounts) and 6 (Socket.IO lobby). Game design, rules and code for the card battle are our own.</p>
+<p>Account and session infrastructure adapted from COMP4021 Labs 5 (accounts) and 6 (Socket.IO lobby). Game design, rules, balance and the battle code are our own. Libraries: Express, express-session, argon2, Socket.IO, jQuery 3.7.1 (loaded from the jQuery CDN, with a copy in <code>public/scripts/</code> that is used automatically if the CDN cannot be reached).</p>
 </body></html>

@@ -128,26 +128,23 @@ async function run() {
     check(await waitFor(() => count(solo, "game:start") === 1), "solo run starts immediately");
     check(solo.gameStart && solo.gameStart.players.length === 1 && solo.gameStart.players[0].username === "solo", "solo run only contains the local player");
 
-    // 6b. A finished solo run is saved on the leaderboard (the browser reports it for now)
+    // 6b. Solo is run by the server too: the browser cannot report (or fake) its own score
+    check(await waitFor(() => solo.gameState), "the server sends the solo player game:state snapshots");
+    check(solo.gameState && solo.gameState.players.length === 1 && solo.gameState.scaling.health === 1 && solo.gameState.scaling.damage === 1,
+        "a solo run has one Slayer and no co-op scaling");
+    check(solo.gameState && solo.gameState.enemy.maxHp === 145, "the solo floor 1 enemy has 145 HP");
+    solo.socket.emit("game:play", { slot: 0 });
+    check(await waitFor(() => solo.gameEffects.some(e => e.type === "card")), "a solo card play is resolved by the server");
+    solo.socket.emit("game:cheat", { on: true });
+    check(await waitFor(() => solo.gameState.cheat === true), "solo cheat mode is switched by the server");
     check((await get("/leaderboard")).json.error, "/leaderboard needs a sign-in");
     check((await get("/leaderboard", soloAccount.cookie)).json.entries.length === 0, "the leaderboard starts empty");
-    const report = { won: true, floors: 3, durationMs: 200000, reason: "x",
-        players: [{ name: "Hacker", username: "someoneelse", damage: 900, blocked: 50, cards: 30, survivalMs: 200000 }] };
-    solo.socket.emit("game:report", report);
-    check(await waitFor(() => solo.gameOver), "the server answers a solo result with game:over");
-    check(solo.gameOver && solo.gameOver.rank === 1 && solo.gameOver.total === 1, "the first saved run is rank 1 of 1");
-    check(solo.gameOver && solo.gameOver.entry.players[0].username === "solo" && solo.gameOver.entry.players[0].name === "Solo",
-        "the leaderboard uses the account's own name, not what the browser claims");
-    solo.socket.emit("game:report", report);
-    await sleep(300);
-    check(count(solo, "game:over") === 1, "a second report for the same run is ignored");
-    const board = (await get("/leaderboard", soloAccount.cookie)).json.entries;
-    check(board.length === 1 && board[0].rank === 1 && board[0].damage === 900 && board[0].players[0].name === "Solo", "/leaderboard lists the saved run");
-    const lobbyOnly = await connect(await makeUser("idle", "Idle"));
-    lobbyOnly.socket.emit("game:report", report);
-    await sleep(300);
-    check(count(lobbyOnly, "game:over") === 0 && (await get("/leaderboard", soloAccount.cookie)).json.entries.length === 1, "a report from a player who is not in a game is ignored");
-    lobbyOnly.socket.close();
+    const forged = { won: true, floors: 3, durationMs: 1000, reason: "x",
+        players: [{ name: "Hacker", username: "someoneelse", damage: 999999, blocked: 50, cards: 30, survivalMs: 1000 }] };
+    solo.socket.emit("game:report", forged);
+    await sleep(400);
+    check(count(solo, "game:over") === 0 && (await get("/leaderboard", soloAccount.cookie)).json.entries.length === 0,
+        "a score reported by the browser (game:report) is ignored: nothing reaches the leaderboard");
     solo.socket.close();
     await sleep(200);
 
@@ -207,9 +204,9 @@ async function run() {
     check(await waitFor(() => B.gameState.cheat === true && B.cheats.some(c => c.on && c.by === "alice")),
         "cheat mode is controlled by the server and announced to the team");
 
-    A.socket.emit("game:report", report);
+    A.socket.emit("game:report", { won: true, floors: 3, durationMs: 1000, players: [{ cards: 5, damage: 99999 }] });
     await sleep(300);
-    check(count(A, "game:over") === 0 && (await get("/leaderboard", alice.cookie)).json.entries.length === 1, "a two-player result is never taken from a browser");
+    check(count(A, "game:over") === 0 && (await get("/leaderboard", alice.cookie)).json.entries.length === 0, "a two-player result is never taken from a browser");
 
     // 8. Refresh keeps the seat (rejoin within the grace period)
     dropConnection(B); 

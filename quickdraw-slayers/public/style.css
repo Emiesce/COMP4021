@@ -263,7 +263,7 @@ button:focus-visible, .card-button:focus-visible { outline: 3px solid #ffcc66; o
 }
 .master-clock strong { font-size: 30px; font-variant-numeric: tabular-nums; letter-spacing: 0.08em; line-height: 1; }
 .master-clock.danger strong { color: #ff5d75; animation: timer-pulse 0.7s ease-in-out infinite alternate; }
-.prototype-chip {
+.mode-chip {
     border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 999px;
     padding: 3px 8px;
@@ -288,6 +288,8 @@ button:focus-visible, .card-button:focus-visible { outline: 3px solid #ffcc66; o
 
 .battlefield-shell {
     width: min(1120px, 100%);
+    /* Never taller than the window (top bar + padding take about 88px), so the cards and deck counter stay on screen */
+    max-width: calc((100vh - 88px) * 1.7778);
     margin: 0 auto;
 }
 
@@ -345,6 +347,39 @@ button:focus-visible, .card-button:focus-visible { outline: 3px solid #ffcc66; o
 .slayer-0 { top: 70.5%; left: 23.2%; }
 .slayer-1 { top: 70.5%; left: 43.8%; }
 .slayer-hud.away { opacity: 0.62; }
+/* Name over each Slayer's HP bar: "YOU · name" in gold for you, the partner's name in teal */
+.slayer-tag {
+    display: block;
+    margin-bottom: 3px;
+    overflow: hidden;
+    color: #5cc9c9;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-align: center;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 3px #000, 0 0 5px #000;
+    white-space: nowrap;
+}
+.slayer-tag.you { color: #ffd76a; }
+/* Shown while the partner's connection is down and their seat is being held */
+.away-banner {
+    position: absolute;
+    z-index: 8;
+    top: 24%;
+    left: 50%;
+    max-width: 70%;
+    padding: 8px 14px;
+    transform: translateX(-50%);
+    border: 1px solid rgba(231, 181, 58, 0.75);
+    border-radius: 8px;
+    background: rgba(18, 13, 27, 0.9);
+    color: #ffd76a;
+    font-size: 13px;
+    font-weight: 800;
+    text-align: center;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.away-banner[hidden] { display: none; }
 .energy-row { margin-top: 4px; }
 .meter {
     position: relative;
@@ -890,7 +925,7 @@ button:focus-visible, .card-button:focus-visible { outline: 3px solid #ffcc66; o
     .slayer-hud { width: 104px; }
     .master-clock { min-width: 0; }
     .master-clock strong { font-size: 20px; }
-    .master-clock .eyebrow, .prototype-chip { font-size: 6px; }
+    .master-clock .eyebrow, .mode-chip { font-size: 6px; }
     .slayer-hud .hp-meter strong { font-size: 6px; }
     .shield-badge { top: -15px; right: -13px; width: 31px; height: 38px; }
     .shield-badge strong { font-size: 10px; }
@@ -935,7 +970,6 @@ button:focus-visible, .card-button:focus-visible { outline: 3px solid #ffcc66; o
 .howto-step p { margin: 0 0 10px; line-height: 1.5; }
 .shot { max-width: 100%; }
 .shot img { max-width: 100%; border-radius: 6px; display: block; }
-.shot.placeholder { background: #eee; border: 2px dashed #bbb; border-radius: 6px; color: #777; text-align: center; padding: 40px 10px; font-size: 14px; }
 .topbar-buttons { display: flex; align-items: center; gap: 10px; }
 
 /* Floating ? help button */
@@ -1142,7 +1176,6 @@ form button:disabled { opacity: 0.6; cursor: wait; }
 .howto-step { min-height: 340px; color: #e8e3d6; }
 .howto-step h3 { color: #fffdf8; }
 .howto-step kbd { background: #2a2d36; color: #e7b53a; border: 1px solid #3a3e4a; }
-.shot.placeholder { background: rgba(255, 255, 255, 0.04); border: 2px dashed rgba(255, 255, 255, 0.2); color: #8d8798; }
 #howto-dots .dot { background: #3a3e4a; }
 #howto-dots .dot.active { background: #e7b53a; }
 .howto-nav button { border: 1px solid rgba(231, 181, 58, 0.7); border-radius: 8px; background: transparent; color: #e7b53a; font-weight: 800; cursor: pointer; }
@@ -1233,7 +1266,7 @@ form button:disabled { opacity: 0.6; cursor: wait; }
 /* Hall of Slayers (lobby leaderboard) */
 .leaderboard-panel { margin-top: 0; }
 #leaderboard-list { max-height: 330px; overflow-y: auto; }
-.lb-row { display: grid; grid-template-columns: 48px 1fr 150px 64px 86px; align-items: center; gap: 10px;
+.lb-row { display: grid; grid-template-columns: 48px 1fr 62px 138px 56px 86px; align-items: center; gap: 10px;
     padding: 9px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 14px; }
 .lb-rank { color: #9b96a6; font-weight: 800; }
 .lb-row:nth-child(-n+3) .lb-rank { color: #e7b53a; }
@@ -1242,7 +1275,13 @@ form button:disabled { opacity: 0.6; cursor: wait; }
 .lb-win .lb-result { color: #e7b53a; font-weight: 800; }
 .lb-time { color: #5cc9c9; font-weight: 700; text-align: right; }
 .lb-damage { color: #cfc9bb; text-align: right; }
-@media (max-width: 640px) { .lb-row { grid-template-columns: 40px 1fr 70px; } .lb-result, .lb-damage { display: none; } }
+.lb-tag { justify-self: start; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; border: 1px solid; }
+.lb-tag.solo { color: #e7b53a; border-color: #e7b53a; }
+.lb-tag.team { color: #5cc9c9; border-color: #5cc9c9; }
+.lb-head { color: #8d8798; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; border-top: none; border-bottom: 1px solid rgba(255, 255, 255, 0.18); padding: 8px 0 6px; }
+.lb-head span:nth-child(5), .lb-head span:nth-child(6) { text-align: right; }
+.lb-head[hidden] { display: none; }
+@media (max-width: 640px) { .lb-row { grid-template-columns: 34px 1fr 56px 50px; } .lb-result, .lb-damage { display: none; } .lb-head span:nth-child(4), .lb-head span:nth-child(6) { display: none; } .lb-head span:nth-child(5) { text-align: right; } }
 
 /* Game-over screen (public/scripts/gameover.js) */
 .go-win { color: #ffd76a !important; text-shadow: 0 0 18px rgba(255, 200, 80, 0.5); }
@@ -1260,3 +1299,22 @@ form button:disabled { opacity: 0.6; cursor: wait; }
 .go-rank.saved { color: #5cc9c9; font-weight: 800; }
 .go-buttons { display: flex; justify-content: center; gap: 12px; margin-top: 12px; }
 .go-home { background: transparent !important; border: 1px solid rgba(231, 181, 58, 0.7) !important; color: #e7b53a !important; }
+
+/* How to Play: numbered legend, picture box and the example leaderboard */
+.help-legend { margin: 8px 0 10px; padding-left: 22px; line-height: 1.5; font-size: 15px; }
+.help-legend li { margin-bottom: 3px; }
+.help-legend li::marker { color: #e7b53a; font-weight: 800; }
+.lb-example { margin: 10px 0 14px; border: 1px solid #3a3e4a; border-radius: 10px; background: rgba(12, 12, 20, 0.7); padding: 4px 12px 6px; }
+.lb-tag { justify-self: start; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; border: 1px solid; }
+.lb-tag.solo { color: #e7b53a; border-color: #e7b53a; }
+.lb-tag.team { color: #5cc9c9; border-color: #5cc9c9; }
+.lb-example .lb-head { color: #8d8798; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid #3a3e4a; padding: 8px 0 6px; }
+.shot img { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45); }
+@media (max-width: 640px) { .lb-example .lb-row { grid-template-columns: 34px 1fr 56px 50px; } .lb-example .lb-result, .lb-example .lb-damage { display: none; } }
+.lb-example .lb-row:nth-child(-n+3) .lb-rank { color: #9b96a6; }
+.lb-example .lb-row:nth-child(n+2):nth-child(-n+4) .lb-rank { color: #e7b53a; }
+
+.shot { text-align: center; margin: 8px 0 12px; }
+.shot img { display: inline-block; max-height: 44vh; width: auto; max-width: 100%; border-radius: 8px; border: 1px solid rgba(231, 181, 58, 0.25); }
+.howto-nav { position: sticky; bottom: -24px; z-index: 2; margin: 0 -30px -24px; padding: 12px 30px 20px; background: linear-gradient(rgba(14, 16, 24, 0), rgba(14, 16, 24, 0.97) 28%); }
+@media (max-width: 600px) { .howto-nav { margin: 0 -14px -18px; padding: 12px 14px 16px; bottom: -18px; } }
