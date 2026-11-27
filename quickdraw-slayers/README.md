@@ -73,4 +73,4 @@ To clear all accounts and scores, stop the server and delete `data/users.json` a
 
 ## Credits
 
-Account and session infrastructure adapted from COMP4021 Labs 5 (accounts) and 6 (Socket.IO lobby). Game design, rules, balance and the battle code are our own. Libraries: Express, express-session, argon2, Socket.IO, jQuery 3.7.1 (loaded from the jQuery CDN, with a copy in `public/scripts/` that is used automatically if the CDN cannot be reached).
+Libraries: Express, express-session, argon2, Socket.IO, jQuery 3.7.1 (loaded from the jQuery CDN, with a copy in `public/scripts/` that is used automatically if the CDN cannot be reached).
