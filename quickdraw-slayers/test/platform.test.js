@@ -49,13 +49,19 @@ const makeUser = async (username, name = username) => {
 // A simulated browser tab: connects with the account's cookie and records every event it receives
 const connect = (account) => new Promise((resolve) => {
     const socket = io(BASE, { extraHeaders: { cookie: account.cookie }, transports: ["websocket"], reconnection: false });
-    const tab = { socket, events: [], notices: [], disconnectReason: null, lastRoom: null, gameStart: null, gameOver: null, refused: null };
+    const tab = {
+        socket, events: [], notices: [], disconnectReason: null, lastRoom: null,
+        gameStart: null, gameOver: null, gameState: null, gameEffects: [], cheats: [], refused: null
+    };
     socket.onAny((event, data) => {
         tab.events.push(event);
         if (event === "room:notice") tab.notices.push(data.type);
         if (event === "room:update") tab.lastRoom = data;
         if (event === "game:start") tab.gameStart = data;
         if (event === "game:over") tab.gameOver = data;
+        if (event === "game:state") tab.gameState = data;
+        if (event === "game:effect") tab.gameEffects.push(data);
+        if (event === "game:cheat") tab.cheats.push(data);
     });
     socket.on("disconnect", (reason) => { tab.disconnectReason = reason; });
     socket.on("connect", () => resolve(tab));
@@ -122,26 +128,23 @@ async function run() {
     check(await waitFor(() => count(solo, "game:start") === 1), "solo run starts immediately");
     check(solo.gameStart && solo.gameStart.players.length === 1 && solo.gameStart.players[0].username === "solo", "solo run only contains the local player");
 
-    // 6b. A finished solo run is saved on the leaderboard (the browser reports it for now)
+    // 6b. Solo is run by the server too: the browser cannot report (or fake) its own score
+    check(await waitFor(() => solo.gameState), "the server sends the solo player game:state snapshots");
+    check(solo.gameState && solo.gameState.players.length === 1 && solo.gameState.scaling.health === 1 && solo.gameState.scaling.damage === 1,
+        "a solo run has one Slayer and no co-op scaling");
+    check(solo.gameState && solo.gameState.enemy.maxHp === 145, "the solo floor 1 enemy has 145 HP");
+    solo.socket.emit("game:play", { slot: 0 });
+    check(await waitFor(() => solo.gameEffects.some(e => e.type === "card")), "a solo card play is resolved by the server");
+    solo.socket.emit("game:cheat", { on: true });
+    check(await waitFor(() => solo.gameState.cheat === true), "solo cheat mode is switched by the server");
     check((await get("/leaderboard")).json.error, "/leaderboard needs a sign-in");
     check((await get("/leaderboard", soloAccount.cookie)).json.entries.length === 0, "the leaderboard starts empty");
-    const report = { won: true, floors: 3, durationMs: 200000, reason: "x",
-        players: [{ name: "Hacker", username: "someoneelse", damage: 900, blocked: 50, cards: 30, survivalMs: 200000 }] };
-    solo.socket.emit("game:report", report);
-    check(await waitFor(() => solo.gameOver), "the server answers a solo result with game:over");
-    check(solo.gameOver && solo.gameOver.rank === 1 && solo.gameOver.total === 1, "the first saved run is rank 1 of 1");
-    check(solo.gameOver && solo.gameOver.entry.players[0].username === "solo" && solo.gameOver.entry.players[0].name === "Solo",
-        "the leaderboard uses the account's own name, not what the browser claims");
-    solo.socket.emit("game:report", report);
-    await sleep(300);
-    check(count(solo, "game:over") === 1, "a second report for the same run is ignored");
-    const board = (await get("/leaderboard", soloAccount.cookie)).json.entries;
-    check(board.length === 1 && board[0].rank === 1 && board[0].damage === 900 && board[0].players[0].name === "Solo", "/leaderboard lists the saved run");
-    const lobbyOnly = await connect(await makeUser("idle", "Idle"));
-    lobbyOnly.socket.emit("game:report", report);
-    await sleep(300);
-    check(count(lobbyOnly, "game:over") === 0 && (await get("/leaderboard", soloAccount.cookie)).json.entries.length === 1, "a report from a player who is not in a game is ignored");
-    lobbyOnly.socket.close();
+    const forged = { won: true, floors: 3, durationMs: 1000, reason: "x",
+        players: [{ name: "Hacker", username: "someoneelse", damage: 999999, blocked: 50, cards: 30, survivalMs: 1000 }] };
+    solo.socket.emit("game:report", forged);
+    await sleep(400);
+    check(count(solo, "game:over") === 0 && (await get("/leaderboard", soloAccount.cookie)).json.entries.length === 0,
+        "a score reported by the browser (game:report) is ignored: nothing reaches the leaderboard");
     solo.socket.close();
     await sleep(200);
 
@@ -159,20 +162,65 @@ async function run() {
     check(await waitFor(() => B.notices.includes("unready")), "partner gets an 'unready' notice");
     A.socket.emit("lobby:ready"); B.socket.emit("lobby:ready");
     check(await waitFor(() => count(A, "room:countdown") >= 3 && count(B, "game:start") === 1, 6000), "both ready: 3-2-1 countdown, then game:start");
-    A.socket.emit("game:report", report);
+    check(await waitFor(() => A.gameState && B.gameState), "both clients receive the authoritative co-op state");
+    check(A.gameState.players.length === 2 && B.gameState.players.length === 2,
+        "co-op state contains both simultaneous players");
+    check(A.gameState.enemy.maxHp === 261 && A.gameState.scaling.health === 1.8,
+        "two-player enemy health scales above the solo base");
+    check(A.gameState.scaling.damage === 1.25, "two-player enemy damage has a player-count multiplier");
+
+    const initialHand = A.gameState.players[0].hand.join(",");
+    const initialEnergy = A.gameState.players[0].energy;
+    A.socket.emit("game:play", { slot: 99 });
+    A.socket.emit("game:reward", { choice: "buff" });
+    await sleep(250);
+    check(A.gameState.players[0].hand.join(",") === initialHand && A.gameState.players[0].energy === initialEnergy,
+        "invalid card and out-of-phase reward intents are ignored");
+
+    A.socket.emit("game:play", { slot: 0 });
+    B.socket.emit("game:play", { slot: 0 });
+    check(await waitFor(() => A.gameEffects.filter(e => e.type === "card").length >= 2),
+        "both players can play cards independently in real time");
+    const cardEffectCount = A.gameEffects.filter(e => e.type === "card").length;
+    A.socket.emit("game:play", { slot: 0 });
+    await sleep(200);
+    check(A.gameEffects.filter(e => e.type === "card").length === cardEffectCount,
+        "a card slot cannot be spammed during its server cooldown");
+
+    const enemyId = A.gameState.enemy.id;
+    check(await waitFor(() => A.gameEffects.some(e => e.type === "enemy-attack"), 7500),
+        "the server drives timed enemy attacks in co-op");
+    const enemyAttack = A.gameEffects.find(e => e.type === "enemy-attack");
+    const scaledDamage = {
+        enemy_typhoon: Math.round(12 * 1.25 * 0.78),
+        enemy_firebird: Math.round(13 * 1.25 * 1.05),
+        enemy_dragon: Math.round(14 * 1.25)
+    }[enemyId];
+    check(enemyAttack.damage === scaledDamage, "enemy attack damage uses the two-player damage multiplier");
+    check(await waitFor(() => A.gameState.players.some(p => p.hp < p.maxHp)),
+        "authoritative enemy damage changes shared player HP");
+
+    A.socket.emit("game:cheat", { on: true });
+    check(await waitFor(() => B.gameState.cheat === true && B.cheats.some(c => c.on && c.by === "alice")),
+        "cheat mode is controlled by the server and announced to the team");
+
+    A.socket.emit("game:report", { won: true, floors: 3, durationMs: 1000, players: [{ cards: 5, damage: 99999 }] });
     await sleep(300);
-    check(count(A, "game:over") === 0 && (await get("/leaderboard", alice.cookie)).json.entries.length === 1, "a two-player result is never taken from a browser");
+    check(count(A, "game:over") === 0 && (await get("/leaderboard", alice.cookie)).json.entries.length === 0, "a two-player result is never taken from a browser");
 
     // 8. Refresh keeps the seat (rejoin within the grace period)
     dropConnection(B); 
     check(await waitFor(() => A.notices.includes("away")), "partner sees 'away' when a connection drops");
     const B2 = await connect(bob);
     check(await waitFor(() => A.notices.includes("back")), "partner sees 'back' after the reconnect");
-    check(B2.events.includes("game:start") && B2.lastRoom && B2.lastRoom.players.length === 2, "reconnected player is put back into the running game");
+    check(await waitFor(() => !!B2.gameState), "a reconnected player receives a fresh authoritative snapshot");
+    check(B2.events.includes("game:start") && B2.lastRoom && B2.lastRoom.players.length === 2 &&
+        B2.gameState.players.some(p => p.username === "bob"), "reconnected player is put back into the running game");
     // Not coming back: the seat is released after the grace period
     dropConnection(B2);
     check(await waitFor(() => A.notices.includes("left"), GRACE_MS + 3000), "seat released after the grace period ('left' notice)");
-    check(A.lastRoom.status === "lobby" && A.lastRoom.players.length === 1, "remaining player is back in a waiting room");
+    check(await waitFor(() => A.lastRoom.status === "lobby" && A.lastRoom.players.length === 1),
+        "remaining player is back in a waiting room");
 
     // 9. Second tab replaces the first, and takes over the seat
     const A2 = await connect(alice);
@@ -199,6 +247,26 @@ async function run() {
     check(await waitFor(() => [T1, T2, T3, T4].every(x => count(x, "game:start") === 1), 6000), "two rooms start games at the same time");
     check(T1.lastRoom.id !== T3.lastRoom.id && T1.lastRoom.players.every(p => ["iso1", "iso2"].includes(p.username)), "each room only knows its own players");
     check(T1.notices.every(n => n !== "left") && T3.notices.every(n => n !== "left"), "nothing leaked between rooms");
+
+    // 11b. Drive one room through all three floors to cover transitions, rewards and saved co-op results
+    T1.socket.emit("game:cheat", { on: true });
+    check(await waitFor(() => T1.gameState.cheat && T2.gameState.cheat), "a room's cheat toggle is isolated to its two players");
+    const finishBy = Date.now() + 30000;
+    while (!T1.gameOver && Date.now() < finishBy) {
+        [[T1, "iso1"], [T2, "iso2"]].forEach(([tab, username]) => {
+            if (!tab.gameState) return;
+            if (tab.gameState.status === "active") {
+                for (let slot = 0; slot < 4; slot++) tab.socket.emit("game:play", { slot });
+            } else if (tab.gameState.status === "reward") {
+                const me = tab.gameState.players.find(player => player.username === username);
+                if (me && !me.rewardChoice) tab.socket.emit("game:reward", { choice: "buff" });
+            }
+        });
+        await sleep(140);
+    }
+    check(T1.gameOver && T1.gameOver.entry.won && T1.gameOver.entry.floors === 3 &&
+        T1.gameOver.entry.players.length === 2, "a complete co-op run saves a two-player victory");
+    check(!T3.gameOver && T4.gameOver === null, "finishing one room does not end a concurrent room");
 
     // 12. Bad messages never crash the server or break later messages
     const E = await makeUser("evil"), ET = await connect(E);

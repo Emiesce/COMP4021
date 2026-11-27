@@ -19,6 +19,7 @@ const Lobby = (function() {
     let replaced = false;       // the server told us another tab took over
     let heartbeat = null;
     let noticeTimer = null;
+    let runEndedBy = null;      // name of the partner who left during a game: explains why we landed back in the room
     let lastRoom = null;        // the newest room:update, kept while the game-over screen is open
 
     // Lobby music: a looping ambient track that plays in the lobby and the room, fades out when a game starts
@@ -79,16 +80,19 @@ const Lobby = (function() {
     const renderLeaderboard = (entries) => {
         const $list = $("#leaderboard-list").empty();
         $("#leaderboard-count").text(entries.length);
+        $("#leaderboard-head").prop("hidden", entries.length === 0);
         if (entries.length === 0) {
             $list.append($("<div class='rooms-empty'>").text("No runs yet. Finish a game to put your name here."));
             return;
         }
         entries.forEach(e => {
             const names = e.players.map(p => p.name).join(" & ");
+            const team = e.players.length > 1;
             const result = e.won ? "Victory" : "Fell on floor " + Math.min(3, e.floors + 1);
             $("<div class='lb-row'>").toggleClass("lb-win", e.won).append(
                 $("<span class='lb-rank'>").text("#" + e.rank),
                 $("<span class='lb-names'>").text(names),
+                $("<span class='lb-tag'>").addClass(team ? "team" : "solo").text(team ? "TEAM" : "SOLO"),
                 $("<span class='lb-result'>").text(result),
                 $("<span class='lb-time'>").text(formatTime(e.durationMs)),
                 $("<span class='lb-damage'>").text(e.damage + " dmg")
@@ -121,6 +125,7 @@ const Lobby = (function() {
         if (me && notice.username === me.username) return;         // only news about the other player
         const make = NOTICES[notice.type];
         if (!make) return;
+        if (notice.type === "left" && $("#game-view").is(":visible") && !GameOver.isOpen()) runEndedBy = notice.name || "Your partner";
         $("#room-notice").text(make(notice.name || ""));
         clearTimeout(noticeTimer);
         noticeTimer = setTimeout(() => $("#room-notice").text(""), NOTICE_MS);
@@ -204,6 +209,11 @@ const Lobby = (function() {
                 else $s.text("Empty slot");
             }
             $("#room-message").text(room.players.length < 2 ? "Waiting for another Slayer…" : "Both Slayers present. Click Ready!");
+            if (runEndedBy && room.players.length < 2) {
+                $("#room-message").text(`${runEndedBy} left, so the run ended. Wait for a new partner or go back to the lobby.`);
+            } else {
+                runEndedBy = null;
+            }
             if (room.status !== "countdown") $("#countdown").text("");
         };
 
@@ -214,13 +224,21 @@ const Lobby = (function() {
             renderRoom(room);
         });
 
-        // The run has ended and was saved. Solo already shows its own result screen; a server-run game does not.
+        // The run has ended (the server ran it, solo or co-op) and was saved: show the result screen
         socket.on("game:over", (info) => {
             if (!GameOver.isOpen()) {
                 Game.stop();
                 show("#game-view");
+                const solo = info.entry.players.length === 1;
                 GameOver.show(info.entry, {
-                    onPlayAgain: () => { GameOver.hide(); if (lastRoom && lastRoom.status !== "playing") renderRoom(lastRoom); else show("#lobby-view"); },
+                    onPlayAgain: () => {
+                        GameOver.hide();
+                        if (solo) {                                 // a solo run: leave this room and start a fresh run
+                            socket.emit("room:leave");
+                            socket.emit("lobby:solo");
+                        } else if (lastRoom && lastRoom.status !== "playing") renderRoom(lastRoom);
+                        else show("#lobby-view");
+                    },
                     onHome: () => { GameOver.hide(); socket.emit("room:leave"); }
                 });
             }
@@ -233,6 +251,7 @@ const Lobby = (function() {
         socket.on("room:left", () => {
             GameOver.hide();
             lastRoom = null;
+            runEndedBy = null;
             $("#ready-button").text("Ready");
             $("#countdown, #room-message, #room-notice").text("");
             show("#lobby-view");

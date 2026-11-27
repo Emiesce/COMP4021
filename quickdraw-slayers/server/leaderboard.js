@@ -1,10 +1,12 @@
 // The saved leaderboard (data/leaderboard.json): one entry per finished run, best runs first.
 //
-//   record(result)  -> { entry, rank, total }   store one finished run (sanitised) and say where it ranks
+//   record(result)  -> { entry, rank, total, unranked }   store one finished run (sanitised) and say where it ranks.
+//                      Runs that used cheat mode, or where nobody played a card, are NOT saved: rank is null and
+//                      `unranked` says why ("cheat" or "idle").
 //   top(n)          -> [entry with .rank]       the best n runs
 //
 // `result` is the object the game hands over when a run ends (the contract is in docs/multiplayer-protocol.md):
-//   { won, floors, durationMs, players: [{ username, name, damage, blocked, cards, survivalMs }] }
+//   { won, floors, durationMs, cheated, players: [{ username, name, damage, blocked, cards, survivalMs }] }
 //
 // Ranking, best first:
 //   1. a win beats any loss
@@ -77,16 +79,25 @@ function load() {
     return list;
 }
 
+// Why a finished run must not appear on the leaderboard (or null when it may)
+function unrankedReason(result, entry) {
+    if (result && result.cheated === true) return "cheat";           // cheat mode was switched on at some point
+    if (entry.players.every(p => p.cards === 0)) return "idle";      // nobody played a single card
+    return null;
+}
+
 function record(result, now) {
     const entry = sanitize(result, now);
     if (!entry) return null;
     const entries = load();
+    const unranked = unrankedReason(result, entry);
+    if (unranked) return { entry, rank: null, total: entries.length, unranked };
     entries.push(entry);
     entries.sort(compare);
     const kept = entries.slice(0, MAX_ENTRIES);
     store.writeJson(FILE, kept);
     const index = kept.findIndex(e => e.id === entry.id);
-    return { entry, rank: index === -1 ? null : index + 1, total: kept.length };
+    return { entry, rank: index === -1 ? null : index + 1, total: kept.length, unranked: null };
 }
 
 function top(n) {
@@ -94,4 +105,4 @@ function top(n) {
     return load().slice(0, count).map((entry, index) => ({ ...entry, rank: index + 1, damage: totalDamage(entry) }));
 }
 
-module.exports = { record, top, compare, sanitize, MAX_ENTRIES };
+module.exports = { record, top, compare, sanitize, unrankedReason, MAX_ENTRIES };

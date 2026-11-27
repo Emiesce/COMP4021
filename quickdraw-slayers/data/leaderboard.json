@@ -1,1 +1,20 @@
-[]
+[
+ {
+  "id": "a5a3753cf8eb",
+  "at": "2026-11-26T11:20:34.377Z",
+  "mode": "solo",
+  "won": true,
+  "floors": 3,
+  "durationMs": 95451,
+  "players": [
+   {
+    "username": "p1",
+    "name": "p1",
+    "damage": 776,
+    "blocked": 196,
+    "cards": 40,
+    "survivalMs": 95451
+   }
+  ]
+ }
+]

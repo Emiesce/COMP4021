@@ -1,5 +1,5 @@
-// Playable solo battle prototype. The room socket starts/stops this page, while
-// combat remains client-local until the authoritative multiplayer protocol is added.
+// The battle runs on the server (server/game.js), for solo and co-op alike. This file only draws what the server
+// sends (game:state snapshots and game:effect cues) and sends the player's intent (play a card, pick a reward, cheat).
 const Game = (function() {
     "use strict";
 
@@ -8,56 +8,15 @@ const Game = (function() {
     // The background image is 16:9, same as the canvas. Lift it so the courtyard meets the sprites,
     // and stretch the bottom edge to cover the strip that lift uncovers.
     const BACKGROUND_SHIFT = 96;
-    const MASTER_TIME_MS = 240000;
-    const ENERGY_INTERVAL_MS = 1800;
-    const REWARD_TIME_MS = 5000;
-    const MAX_SHIELD = 60;
-    const DECK_COPIES = 2;
+    const {
+        MASTER_TIME_MS, ENERGY_INTERVAL_MS,
+        CARD_POOL, ENEMIES, FLOOR_HEALTH, FLOOR_HEALTH_VARIANCE
+    } = QuickdrawGameData;
 
-    const CARD_POOL = [
-        { id: "pop_quiz", name: "Pop Quiz", type: "ATTACK", cost: 1, action: "damage", value: 16,
-            image: "/images/cards/pop_quiz.jpg", color: "#ffcf66", description: "Fast strike. 16 damage." },
-        { id: "dragonboat", name: "Dragonboat", type: "ATTACK", cost: 2, action: "damage", value: 32,
-            image: "/images/cards/dragonboat.jpg", color: "#ff8d53", description: "Heavy strike. 32 damage." },
-        { id: "final_exam", name: "Final Exam", type: "ATTACK", cost: 3, action: "damage", value: 54,
-            image: "/images/cards/final_exam.jpg", color: "#f45d8e", description: "Devastating strike. 54 damage." },
-        { id: "lab_explosion", name: "Lab Explosion", type: "ATTACK", cost: 3, action: "damage", value: 48,
-            image: "/images/cards/lab_explosion.jpg", color: "#ffad50", description: "Explosive hit. 48 damage." },
-        { id: "shield", name: "Shield", type: "BLOCK", cost: 1, action: "block", value: 24,
-            image: "/images/cards/shield.jpg", color: "#63dcff", description: "Gain 24 Shield." },
-        { id: "office_hours", name: "Office Hours", type: "BLOCK", cost: 1, action: "block", value: 20,
-            image: "/images/cards/office_hours.jpg", color: "#76cfff", description: "Gain 20 Shield. Find an opening." },
-        { id: "group_project", name: "Group Project", type: "UTILITY", cost: 2, action: "weaken", value: 2,
-            image: "/images/cards/group_project.jpg", color: "#b888ff", description: "Enemy deals 35% less damage for 2 attacks." },
-        { id: "bell_curve", name: "Bell Curve", type: "UTILITY", cost: 2, action: "vulnerable", value: 8000,
-            image: "/images/cards/bell_curve.jpg", color: "#d989ff", description: "Enemy takes 45% more damage for 8s." },
-        { id: "milk_tea", name: "Milk Tea", type: "UTILITY", cost: 1, action: "heal", value: 24,
-            image: "/images/cards/milk_tea.jpg", color: "#79e49d", description: "Recover 24 HP." },
-        { id: "extension", name: "Extension", type: "UTILITY", cost: 2, action: "energy", value: 2,
-            image: "/images/cards/extension.jpg", color: "#ffe078", description: "Restore 2 Energy for all players." }
+    const PLAYER_LAYOUT = [
+        { x: 125, y: 222, scale: 0.82, sprite: "grade_farmer", fallbackName: "Grade Farmer" },
+        { x: 340, y: 254, scale: 0.68, sprite: "deadline_fighter", fallbackName: "Deadline Fighter" }
     ];
-
-    const ENEMIES = [
-        {
-            id: "enemy_typhoon", name: "Campus Typhoon", intent: "Cyclone Spiral",
-            attackDelay: 5200, image: "/images/sprites/enemy_typhoon_sheet.png",
-            baseDamage: 12, color: "#65c8ff"
-        },
-        {
-            id: "enemy_firebird", name: "Feral Firebird", intent: "Crimson Dive",
-            attackDelay: 5000, image: "/images/sprites/enemy_firebird_sheet.png",
-            baseDamage: 13, color: "#ff7a55"
-        },
-        {
-            id: "enemy_dragon", name: "Thesis Dragon", intent: "Thesis Breath",
-            attackDelay: 4700, image: "/images/sprites/enemy_dragon_sheet.png",
-            baseDamage: 14, color: "#c77dff"
-        }
-    ];
-
-    const PLAYER_LAYOUT = [{ x: 156, y: 214, scale: 0.82, sprite: "grade_farmer", fallbackName: "Grade Farmer" }];
-    const FLOOR_HEALTH = [145, 220, 320];
-    const FLOOR_HEALTH_VARIANCE = [1, 1.02, 1.04];
     let socket = null;
     let state = null;
     let animationFrame = null;
@@ -66,12 +25,14 @@ const Game = (function() {
     let assets = { backgrounds: new Image(), sprites: {}, metadata: null };
     let lastHudPaint = 0;
     let listenersBound = false;
+    let networkSocket = null;
+    let localUsername = null;
+    let lastHandSignature = "";
 
     const byId = id => document.getElementById(id);
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-    const randomItem = items => items[Math.floor(Math.random() * items.length)];
-    const shuffled = items => [...items].sort(() => Math.random() - 0.5);
     const easeOut = t => 1 - Math.pow(1 - t, 3);
+    const cardById = new Map(CARD_POOL.map(card => [card.id, card]));
 
     function formatTime(milliseconds) {
         const total = Math.max(0, Math.ceil(milliseconds / 1000));
@@ -85,29 +46,24 @@ const Game = (function() {
         return typeof value === "string" && value.trim() ? value.slice(0, 24) : PLAYER_LAYOUT[index].fallbackName;
     }
 
-    function buildDeck() {
-        return shuffled(CARD_POOL.flatMap(card =>
-            Array.from({ length: DECK_COPIES }, () => ({ ...card }))
-        ));
-    }
-
-    function drawCategory(player, predicate) {
-        const index = player.deck.findIndex(predicate);
-        return player.deck.splice(index >= 0 ? index : 0, 1)[0];
-    }
-
-    function resetHand(player) {
-        player.deck = buildDeck();
-        player.hand = [
-            drawCategory(player, card => card.type === "ATTACK"),
-            drawCategory(player, card => card.type === "BLOCK"),
-            drawCategory(player, card => card.type === "UTILITY"),
-            drawCategory(player, card => true)
-        ];
-    }
-
     function setAnimation(entity, name) {
         entity.animation = { name, startedAt: performance.now() };
+    }
+
+    // Each seat is always the same character on every screen: seat 0 is the straw-hat Grade Farmer on the left,
+    // seat 1 is the shield-bearing Deadline Fighter on the right. `index` is the on-screen slot used for the HUD
+    // and hand (0 = you); `seat` is the server's player order (0 = the player who created the room).
+    function applySeat(player, seat) {
+        const layout = PLAYER_LAYOUT[seat] || PLAYER_LAYOUT[0];
+        player.sprite = layout.sprite;
+        player.x = layout.x;
+        player.y = layout.y;
+        player.scale = layout.scale;
+        const hud = byId(`player-hud-${player.index}`);
+        if (hud) {                                     // the HUD sits under its own character
+            hud.classList.remove("slayer-0", "slayer-1");
+            hud.classList.add(`slayer-${seat === 1 ? 1 : 0}`);
+        }
     }
 
     function makePlayer(index, roomPlayers) {
@@ -126,84 +82,64 @@ const Game = (function() {
             energyMax: 4,
             energyProgress: 0,
             damageBoost: 1,
-            cheat: false,
             hand: [],
-            deck: [],
-            deckCycle: 0,
+            deckCount: 16,
             lockedSlots: new Set(),
             lastEnergyCharge: -Infinity,
             lastDeckReset: -Infinity,
             animation: { name: "idle", startedAt: performance.now() },
             rewardChoice: null
         };
-        resetHand(player);
         return player;
     }
 
+    // Sound: one music file for the battle plus short sound-effect files (all in public/sounds/), played with
+    // HTML audio elements. Browsers only allow sound after the player has clicked the page, so everything starts in unlock().
+    const SOUND_EFFECTS = ["attack", "block", "hit", "reward", "victory", "defeat", "error"];
+    const SOUND_VOLUME = 0.4;
+
     const Audio = {
-        context: null,
-        master: null,
-        interval: null,
-        step: 0,
+        music: null,
+        effects: null,
+        started: false,
         muted: false,
+        lastError: 0,
 
         unlock() {
-            if (!this.context) {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContext) return;
-                this.context = new AudioContext();
-                this.master = this.context.createGain();
-                this.master.gain.value = 0.20;  // master volume control for hit/attack sounds
-                this.master.connect(this.context.destination);
+            if (!this.effects) {
+                this.effects = {};
+                SOUND_EFFECTS.forEach(name => {
+                    const clip = new window.Audio(`/sounds/${name}.wav`);
+                    clip.preload = "auto";
+                    this.effects[name] = clip;
+                });
             }
-            if (!this.interval) this.beginMusic();
-            if (this.context.state === "suspended") this.context.resume().catch(() => {});
+            if (!this.music) {
+                this.music = new window.Audio("/sounds/boss_music_1.mp3");
+                this.music.loop = true;
+                this.music.volume = 0.3;
+            }
+            if (!this.started && !this.muted) this.playMusic();
         },
 
-        beginMusic() {
-            if (!this.game_music_1) { 
-                this.game_music_1 = new window.Audio("/sounds/boss_music_1.mp3");
-                this.game_music_1.loop = true;
-                this.game_music_1.volume = 0.3; 
-            }
-            if (!this.muted) { 
-                this.game_music_1.play();
-            }
+        // Browsers may refuse to start audio before the player has clicked the page: ignore that and retry later
+        playMusic() {
+            const attempt = this.music.play();
+            if (attempt && attempt.then) attempt.then(() => { this.started = true; }, () => {});
         },
 
-        note(frequency, when, duration, type, volume) {
-            if (!this.context || !this.master || this.muted) return;
-            const oscillator = this.context.createOscillator();
-            const gain = this.context.createGain();
-            oscillator.type = type || "sine";
-            oscillator.frequency.setValueAtTime(frequency, when);
-            gain.gain.setValueAtTime(0.0001, when);
-            gain.gain.exponentialRampToValueAtTime(volume, when + 0.015);
-            gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
-            oscillator.connect(gain);
-            gain.connect(this.master);
-            oscillator.start(when);
-            oscillator.stop(when + duration + 0.02);
-        },
-
+        // Play a copy of the clip so that quick repeats overlap instead of cutting each other off
         play(name) {
-            if (!this.context || this.context.state !== "running" || this.muted) return;
-            const now = this.context.currentTime;
-            if (name === "attack") {
-                this.note(520, now, 0.09, "square", 0.11);
-                this.note(250, now + 0.025, 0.12, "sawtooth", 0.11);
-            } else if (name === "block") {
-                this.note(310, now, 0.16, "triangle", 0.11);
-                this.note(620, now + 0.05, 0.2, "sine", 0.11);
-            } else if (name === "hit") {
-                this.note(110, now, 0.14, "sawtooth", 0.10);
-            } else if (name === "reward") {
-                [392, 523.25, 659.25].forEach((note, index) => this.note(note, now + index * 0.09, 0.22, "triangle", 0.10));
-            } else if (name === "error") {
-                this.note(120, now, 0.1, "square", 0.08);   
-            } else if (name === "victory") {
-                [261.63, 329.63, 392, 523.25].forEach((note, index) => this.note(note, now + index * 0.12, 0.3, "triangle", 0.10));
+            if (this.muted || !this.effects || !this.effects[name]) return;
+            if (name === "error") {                         // holding a key down must not turn into a buzz
+                const now = Date.now();
+                if (now - this.lastError < 250) return;
+                this.lastError = now;
             }
+            const clip = this.effects[name].cloneNode();
+            clip.volume = SOUND_VOLUME;
+            const attempt = clip.play();
+            if (attempt && attempt.catch) attempt.catch(() => {});
         },
 
         // The mute setting is shared with the lobby music button (SoundSetting, defined in lobby.js)
@@ -215,20 +151,19 @@ const Game = (function() {
             this.syncMuted();
             this.unlock();
             this.muted = !this.muted;
-            if (this.game_music_1) {
-                if (this.muted) this.game_music_1.pause();
-                else this.game_music_1.play();
+            if (this.muted) {
+                this.music.pause();
+                this.started = false;
+            } else {
+                this.playMusic();
             }
             SoundSetting.muted = this.muted;
             byId("music-toggle").textContent = this.muted ? "Sound off" : "Sound on";
         },
 
         stop() {
-            if (this.interval) clearInterval(this.interval);
-            this.interval = null;
-            if (this.game_music_1) {
-                this.game_music_1.pause();
-            }
+            if (this.music) this.music.pause();
+            this.started = false;
         }
     };
 
@@ -254,41 +189,7 @@ const Game = (function() {
         keys.forEach((key, index) => { assets.sprites[key] = images[index]; });
     }
 
-    function spawnEnemy() {
-        const template = state.enemyOrder[state.floor - 1];
-        state.enemy = {
-            ...template,
-            // adjust enemy height
-            x: 640,
-            y: 160,
-            scale: 0.74,
-            maxHp: Math.round(FLOOR_HEALTH[state.floor - 1] * FLOOR_HEALTH_VARIANCE[state.floor - 1]),
-            hp: 0,
-            attackElapsed: 0,
-            attackDelay: Math.max(5400, template.attackDelay + 1200 - (state.floor - 1) * 400),
-            attackNumber: 0,
-            vulnerableUntil: 0,
-            weaknessAttacks: 0,
-            animation: { name: "idle", startedAt: performance.now() }
-        };
-        state.enemy.hp = state.enemy.maxHp;
-        state.projectiles = [];
-        state.hazards = [];
-        state.players.forEach(player => {
-            player.energyMax = state.floor + 3;
-            player.energy = player.energyMax;
-            player.energyProgress = 0;
-            setAnimation(player, "idle");
-        });
-        updateNames();
-        feed(`${state.enemy.name} enters the battle.`);
-        setAnimation(state.enemy, "charge");
-    }
-
     function updateNames() {
-        state.players.forEach(player => {
-            byId(`player-name-${player.index}`).textContent = player.name;
-        });
         if (!state.enemy) return;
         byId("enemy-name").textContent = state.enemy.name;
         byId("enemy-variant").textContent = `VARIANT ${["I", "II", "III"][state.floor - 1]}`;
@@ -322,6 +223,7 @@ const Game = (function() {
         const description = document.createElement("span");
         description.className = "card-description";
         description.textContent = card.description;
+        button.style.setProperty("--card-color", card.color);
         button.append(image, cost, hotkey, type, name, description);
         button.addEventListener("click", () => playCard(player.index, cardIndex, button));
         return button;
@@ -331,6 +233,7 @@ const Game = (function() {
         if (!state) return;
         state.players.forEach(player => {
             const host = byId(`card-hand-${player.index}`);
+            if (!host) return;
             host.replaceChildren(...player.hand.map((card, cardIndex) => makeCardButton(player, card, cardIndex)));
         });
         updateCardAvailability();
@@ -339,15 +242,18 @@ const Game = (function() {
     function updateCardAvailability() {
         if (!state) return;
         state.players.forEach(player => {
-            const buttons = byId(`card-hand-${player.index}`).querySelectorAll(".card-button");
+            const host = byId(`card-hand-${player.index}`);
+            const handZone = byId(`hand-zone-${player.index}`);
+            if (!host || !handZone) return;
+            const buttons = host.querySelectorAll(".card-button");
             buttons.forEach((button, index) => {
                 const card = player.hand[index];
-                const unavailable = player.hp <= 0 || state.status !== "active" ||
-                    player.lockedSlots.has(index) || (!player.cheat && player.energy < card.cost);
+                const unavailable = !card || player.hp <= 0 || state.status !== "active" ||
+                    player.lockedSlots.has(index) || (!state.cheat && player.energy < card.cost);
                 button.classList.toggle("unaffordable", unavailable);
                 button.setAttribute("aria-disabled", unavailable ? "true" : "false");
             });
-            byId(`hand-zone-${player.index}`).classList.toggle("inactive", player.hp <= 0 || state.status !== "active");
+            handZone.classList.toggle("inactive", player.hp <= 0 || state.status !== "active");
         });
     }
 
@@ -376,15 +282,12 @@ const Game = (function() {
         state.players.forEach(player => {
             byId(`player-hp-${player.index}`).style.width = `${(player.hp / player.maxHp) * 100}%`;
             byId(`player-hp-text-${player.index}`).textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
-            byId(`player-shield-${player.index}`).style.width = `${(player.shield / MAX_SHIELD) * 100}%`;
-            byId(`player-shield-text-${player.index}`).textContent = String(Math.ceil(player.shield));
+            const shield = Math.ceil(player.shield);
+            byId(`player-shield-text-${player.index}`).textContent = String(shield);
+            const shieldBadge = byId(`player-shield-badge-${player.index}`);
+            shieldBadge.hidden = shield <= 0;
+            shieldBadge.setAttribute("aria-label", `${shield} Shield`);
             byId(`player-hud-${player.index}`).classList.toggle("defeated", player.hp <= 0);
-            const chargeRemaining = player.energy < player.energyMax
-                ? Math.ceil((ENERGY_INTERVAL_MS - player.energyProgress) / 1000)
-                : 0;
-            byId(`player-energy-text-${player.index}`).textContent =
-                `${Math.floor(player.energy)} / ${player.energyMax}${chargeRemaining ? ` +${chargeRemaining}s` : ""}`;
-
             const pipHost = byId(`player-energy-${player.index}`);
             if (pipHost.children.length !== player.energyMax) {
                 pipHost.replaceChildren();
@@ -397,9 +300,9 @@ const Game = (function() {
             }
             for (let index = 0; index < player.energyMax; index++) {
                 const pip = pipHost.children[index];
-                const full = index < player.energy || player.cheat;
+                const full = index < player.energy || state.cheat;
                 const charging = index === Math.floor(player.energy) && player.energy < player.energyMax;
-                const fill = full || player.cheat ? 100 : (charging ? player.energyProgress / ENERGY_INTERVAL_MS * 100 : 0);
+                const fill = full ? 100 : (charging ? player.energyProgress / ENERGY_INTERVAL_MS * 100 : 0);
                 pip.classList.toggle("full", full);
                 pip.style.setProperty("--fill", `${fill}%`);
                 pip.classList.toggle(
@@ -412,18 +315,20 @@ const Game = (function() {
                     pip.setAttribute("aria-label", full ? "Energy ready" : "Energy empty");
                 }
             }
-            renderStatusStrip(byId(`player-status-${player.index}`), player.shield > 0
-                ? [{ key: "block", kind: "block", label: `BLOCK ${Math.ceil(player.shield)}` }]
-                : []);
-            byId("deck-count").textContent = String(player.deck.length);
-            byId("deck-counter").setAttribute(
-                "aria-label",
-                `${player.deck.length} cards remaining in the deck`
-            );
-            byId("deck-counter").classList.toggle(
-                "reshuffling",
-                state.clock - player.lastDeckReset < 650
-            );
+            byId(`player-hud-${player.index}`).classList.toggle("away", !!player.away);
+            const tag = byId(`player-tag-${player.index}`);
+            const isYou = player.username === localUsername;
+            tag.textContent = isYou ? `YOU · ${player.name}` : player.name;
+            tag.classList.toggle("you", isYou);
+            if (player.index === 0) {
+                const deckLength = player.deckCount;
+                byId("deck-count").textContent = String(deckLength);
+                byId("deck-counter").setAttribute("aria-label", `${deckLength} cards remaining in the deck`);
+                byId("deck-counter").classList.toggle(
+                    "reshuffling",
+                    state.clock - player.lastDeckReset < 650
+                );
+            }
         });
 
         const enemy = state.enemy;
@@ -458,7 +363,7 @@ const Game = (function() {
         const clock = byId("master-clock-value");
         clock.textContent = formatTime(state.timeRemaining);
         byId("master-clock").classList.toggle("danger", state.timeRemaining <= 30000 && state.status === "active");
-        byId("cheat-badge").classList.toggle("visible", state.players[0].cheat);
+        byId("cheat-badge").classList.toggle("visible", state.cheat);
         updateCardAvailability();
     }
 
@@ -486,6 +391,7 @@ const Game = (function() {
 
     function hudPulse(playerIndex, className) {
         const element = byId(`player-hud-${playerIndex}`);
+        if (!element) return;
         element.classList.remove(className);
         void element.offsetWidth;
         element.classList.add(className);
@@ -525,66 +431,6 @@ const Game = (function() {
         };
     }
 
-    function dealEnemyDamage(playerIndex, incoming, source) {
-        if (!state || state.status !== "active") return;
-        const player = state.players[playerIndex];
-        if (player.hp <= 0) return;
-        if (player.cheat) {
-            const target = enemyTarget(player);
-            addFloating(target.x, target.y - 25, "IMMUNE", "#8ff4ff", 14);
-            burst(target.x, target.y, "#8ff4ff", 10);
-            return;
-        }
-
-        const blocked = Math.min(player.shield, incoming);
-        player.shield -= blocked;
-        state.stats.blocked += blocked;                  // damage the Shield soaked up (shown on the game-over screen)
-        const damage = incoming - blocked;
-        player.hp = Math.max(0, player.hp - damage);
-        const target = enemyTarget(player);
-        if (blocked > 0) {
-            addFloating(target.x - 8, target.y - 36, `BLOCK ${Math.ceil(blocked)}`, "#7bdfff", 14);
-            hudPulse(player.index, "blocked");
-        }
-        if (damage > 0) {
-            addFloating(target.x + 18, target.y - 32, `-${Math.ceil(damage)}`, "#ff7388", 22);
-            hudPulse(player.index, "hit");
-            setAnimation(player, "hurt");
-            burst(target.x, target.y, "#ff5976", 13);
-            Audio.play("hit");
-        } else {
-            Audio.play("block");
-        }
-        if (player.hp <= 0) {
-            setAnimation(player, "defeated");
-            feed(`${player.name} is down.`);
-            finishGame(false, "Your Slayer fell.");
-        }
-    }
-
-    function dealCardDamage(playerIndex, rawDamage) {
-        if (!state || state.status !== "active" || !state.enemy) return;
-        const player = state.players[playerIndex];
-        const vulnerability = state.enemy.vulnerableUntil > state.clock ? 1.45 : 1;
-        const cheat = player.cheat ? 3 : 1;
-        let damage = rawDamage * player.damageBoost * vulnerability * cheat;
-
-        const recentUtility = state.lastUtility;
-        if (recentUtility && state.clock - recentUtility.time <= 2200) {
-            damage *= 1.25;
-            state.lastUtility = null;
-            callout(`SETUP COMBO! +25%`);
-        }
-        damage = Math.round(damage);
-        state.enemy.hp = Math.max(0, state.enemy.hp - damage);
-        setAnimation(state.enemy, "hurt");
-        addFloating(state.enemy.x + 118, state.enemy.y + 78, `-${damage}`, vulnerability > 1 ? "#ffe27a" : "#ff7c9b", damage > 50 ? 28 : 20);
-        burst(state.enemy.x + 118, state.enemy.y + 105, vulnerability > 1 ? "#ffdc72" : "#ff688d", 18);
-        Audio.play("attack");
-        state.stats.damage += damage;
-        if (state.enemy.hp <= 0) clearFloor();
-    }
-
     function burnCard(button, color) {
         if (!button) return;
         button.style.setProperty("--burn-color", color);
@@ -600,245 +446,27 @@ const Game = (function() {
         }
     }
 
-    function cardResolved(playerIndex, cardIndex, button) {
-        const player = state.players[playerIndex];
-        const run = state;
-        const deckCycle = player.deckCycle;
-        player.lockedSlots.add(cardIndex);
-        button && button.classList.add("played");
-        button && button.setAttribute("aria-busy", "true");
-        state.stats.cards++;
-        setTimeout(() => {
-            if (state !== run || player.deckCycle !== deckCycle || !player.lockedSlots.has(cardIndex)) return;
-            const drawnCard = player.deck.shift();
-            const resetDeck = !drawnCard || player.deck.length === 0;
-            if (!resetDeck) player.hand[cardIndex] = drawnCard;
-            else {
-                resetHand(player);
-                player.deckCycle++;
-                player.lockedSlots.clear();
-                player.lastDeckReset = state.clock;
-                callout("DECK RENEWED");
-                feed("The deck is reshuffled and a fresh hand is dealt.");
-            }
-            player.lockedSlots.delete(cardIndex);
-            const host = byId(`card-hand-${playerIndex}`);
-            if (resetDeck) {
-                host.replaceChildren(...player.hand.map((card, index) => makeCardButton(player, card, index, true)));
-            } else {
-                const replacement = makeCardButton(player, player.hand[cardIndex], cardIndex, true);
-                const current = host.children[cardIndex];
-                if (current) host.replaceChild(replacement, current);
-            }
-            updateCardAvailability();
-            paintMeters();
-        }, 650);
-    }
-
+    // The server decides what a card does: the browser only asks to play the card in this slot
     function playCard(playerIndex, cardIndex, button) {
         Audio.unlock();
         if (!state || state.status !== "active") return;
         const player = state.players[playerIndex];
+        if (!player) return;
         const card = player.hand[cardIndex];
-        if (!player || !card || player.hp <= 0 || player.lockedSlots.has(cardIndex)) return;
-        if (!player.cheat && player.energy < card.cost) {
+        if (!card || player.hp <= 0 || player.lockedSlots.has(cardIndex)) return;
+        if (!state.cheat && player.energy < card.cost) {
             button && button.classList.add("invalid");
             setTimeout(() => button && button.classList.remove("invalid"), 280);
             feed(`${player.name} needs ${card.cost} Energy for ${card.name}.`);
             Audio.play("error");
             return;
         }
-
-        if (!player.cheat) {
-            player.energy -= card.cost;
-            player.energyProgress = 0;
+        if (socket && socket.connected) {
+            player.lockedSlots.add(cardIndex);
+            burnCard(button, card.color);
+            updateCardAvailability();
+            socket.emit("game:play", { slot: cardIndex });
         }
-        setAnimation(player, card.action === "block" ? "block" : "attack");
-        burnCard(button, card.color);
-
-        const from = enemyTarget(player);
-        const target = { x: state.enemy.x + 125, y: state.enemy.y + 105 };
-        if (card.action === "damage") {
-            addProjectile(from, target, {
-                color: card.color,
-                duration: card.cost >= 3 ? 700 : 520,
-                size: card.cost >= 3 ? 16 : 11,
-                onHit: () => dealCardDamage(playerIndex, card.value)
-            });
-            feed(`${player.name} fires ${card.name}.`);
-        } else if (card.action === "block") {
-            player.shield = Math.min(MAX_SHIELD, player.shield + card.value);
-            state.effects.push({ kind: "shield", playerIndex, age: 0, duration: 640, color: card.color });
-            addFloating(from.x, from.y - 42, `+${card.value} SHIELD`, "#75dfff", 16);
-            Audio.play("block");
-            state.stats.blocks += card.value;
-            feed(`${player.name} raises ${card.name}.`);
-            setTimeout(() => {
-                if (state && state.players[playerIndex] === player && player.hp > 0) setAnimation(player, "idle");
-            }, 520);
-        } else if (card.action === "heal") {
-            const healed = Math.min(card.value, player.maxHp - player.hp);
-            player.hp += healed;
-            state.effects.push({ kind: "heal", playerIndex, age: 0, duration: 720, color: card.color });
-            addFloating(from.x, from.y - 45, `+${healed} HP`, "#83efad", 18);
-            Audio.play("reward");
-            feed(`${player.name} recovers with ${card.name}.`);
-        } else if (card.action === "energy") {
-            player.energy = Math.min(player.energyMax, player.energy + card.value);
-            player.lastEnergyCharge = state.clock;
-            state.effects.push({ kind: "energy", playerIndex, age: 0, duration: 720, color: card.color });
-            addFloating(from.x, from.y - 42, `+${card.value} ENERGY`, "#ffe179", 15);
-            feed(`${player.name} takes an ${card.name}.`);
-            Audio.play("reward");
-        } else if (card.action === "weaken") {
-            addProjectile(from, target, {
-                color: card.color, kind: "debuff", duration: 600,
-                onHit: () => {
-                    state.enemy.weaknessAttacks = card.value;
-                    state.lastUtility = { time: state.clock, player: playerIndex, card: card.id };
-                    callout("ENEMY WEAKENED");
-                    feed(`${card.name} lowers the next ${card.value} attacks.`);
-                }
-            });
-        } else if (card.action === "vulnerable") {
-            addProjectile(from, target, {
-                color: card.color, kind: "mark", duration: 620,
-                onHit: () => {
-                    state.enemy.vulnerableUntil = state.clock + card.value;
-                    state.lastUtility = { time: state.clock, player: playerIndex, card: card.id };
-                    callout("TARGET MARKED +45%");
-                    feed(`${player.name} bends the curve in your favor.`);
-                }
-            });
-        }
-
-        cardResolved(playerIndex, cardIndex, button);
-        paintMeters();
-    }
-
-    function fireEnemyAttack() {
-        if (!state || state.status !== "active") return;
-        const living = state.players.map(player => player.index).filter(index => state.players[index].hp > 0);
-        if (!living.length) return;
-        const enemy = state.enemy;
-        const attackNumber = ++enemy.attackNumber;
-        let baseDamage = enemy.baseDamage + (state.floor - 1) * 7;
-        if (enemy.weaknessAttacks > 0) {
-            baseDamage *= 0.65;
-            enemy.weaknessAttacks--;
-        }
-        setAnimation(enemy, "attack");
-        Audio.play("attack");
-        feed(`${enemy.name} launches ${enemy.intent}!`);
-
-        if (enemy.id === "enemy_typhoon") {
-            addProjectile(
-                { x: enemy.x + 60, y: enemy.y + 100 },
-                enemyTarget(state.players[0]),
-                {
-                    color: enemy.color, kind: "wind", duration: 950, size: 15,
-                    onHit: () => dealEnemyDamage(0, Math.round(baseDamage * 0.78))
-                }
-            );
-        } else if (enemy.id === "enemy_firebird") {
-            addProjectile(
-                { x: enemy.x + 55, y: enemy.y + 100 },
-                enemyTarget(state.players[0]),
-                {
-                    color: "#ff734d", kind: "fire", duration: 850, size: 18,
-                    onHit: () => {
-                        dealEnemyDamage(0, Math.round(baseDamage * 1.05));
-                        state.hazards.push({
-                            ...enemyTarget(state.players[0]), color: "#ff754c", age: 0, duration: 900
-                        });
-                    }
-                }
-            );
-        } else {
-            addProjectile(
-                { x: enemy.x + 52, y: enemy.y + 108 },
-                enemyTarget(state.players[0]),
-                {
-                    color: "#bb80ff", kind: "breath", duration: 900, size: 19,
-                    onHit: () => dealEnemyDamage(0, Math.round(baseDamage * (attackNumber % 2 === 0 ? 0.85 : 1)))
-                }
-            );
-        }
-    }
-
-    function clearFloor() {
-        if (!state || state.status !== "active") return;
-        state.stats.floors++;
-        setAnimation(state.enemy, "defeated");
-        state.projectiles = [];
-        state.hazards = [];
-        state.status = "transition";
-        Audio.play("reward");
-        callout(`FLOOR ${state.floor} CLEARED`);
-
-        if (state.floor === 3) {
-            setTimeout(() => finishGame(true, "All three floors cleared."), 800);
-        } else {
-            setTimeout(showRewards, 650);
-        }
-    }
-
-    function showRewards() {
-        if (!state || state.status !== "transition") return;
-        state.status = "reward";
-        state.rewardEndsAt = state.clock + REWARD_TIME_MS;
-        state.players.forEach(player => { player.rewardChoice = null; });
-        const overlay = byId("game-overlay");
-        const card = byId("game-overlay-card");
-        card.replaceChildren();
-
-        const kicker = document.createElement("div");
-        kicker.className = "overlay-kicker";
-        kicker.textContent = `FLOOR ${state.floor} CLEARED`;
-        const title = document.createElement("h2");
-        title.textContent = "Choose your advantage";
-        const copy = document.createElement("div");
-        copy.className = "overlay-copy";
-        copy.textContent = "The master timer is paused. Choose one advantage before the next floor.";
-        const clock = document.createElement("div");
-        clock.className = "reward-clock";
-        clock.id = "reward-clock";
-        clock.textContent = "5";
-        const columns = document.createElement("div");
-        columns.className = "reward-columns";
-
-        state.players.forEach(player => {
-            const column = document.createElement("section");
-            column.className = "reward-player";
-            column.id = `reward-player-${player.index}`;
-            const heading = document.createElement("h3");
-            heading.textContent = player.name;
-            const options = document.createElement("div");
-            options.className = "reward-options";
-            [
-                ["card", "Draw a card", "Replace one card with a rare strike."],
-                ["buff", "Train", "+12% damage and +10 max HP."],
-                ["heal", "Rest", "Recover 40 HP now."]
-            ].forEach(([id, label, description]) => {
-                const button = document.createElement("button");
-                button.type = "button";
-                button.className = "reward-button";
-                button.dataset.player = String(player.index);
-                button.dataset.reward = id;
-                const strong = document.createElement("strong");
-                strong.textContent = label;
-                const small = document.createElement("small");
-                small.textContent = description;
-                button.append(strong, small);
-                button.addEventListener("click", () => chooseReward(player.index, id));
-                options.append(button);
-            });
-            column.append(heading, options);
-            columns.append(column);
-        });
-        card.append(kicker, title, copy, clock, columns);
-        overlay.hidden = false;
-        renderHands();
     }
 
     function chooseReward(playerIndex, choice) {
@@ -846,84 +474,13 @@ const Game = (function() {
         const player = state.players[playerIndex];
         if (player.rewardChoice) return;
         player.rewardChoice = choice;
-        if (choice === "card") {
-            player.rewardReviveBonus = false;
-            const rare = randomItem(CARD_POOL.filter(card => card.cost >= 2));
-            const weakest = player.hand.reduce((best, card, index) => card.cost < player.hand[best].cost ? index : best, 0);
-            player.hand[weakest] = { ...rare };
-            feed(`${player.name} adds ${rare.name}.`);
-        } else if (choice === "buff") {
-            player.rewardReviveBonus = false;
-            player.damageBoost += 0.12;
-            player.maxHp += 10;
-            player.hp = Math.min(player.maxHp, player.hp + 10);
-            feed(`${player.name} gains 12% damage.`);
-        } else if (choice === "heal") {
-            player.rewardReviveBonus = false;
-            player.hp = Math.min(player.maxHp, player.hp + 40);
-            feed(`${player.name} recovers 40 HP.`);
-        }
+        if (socket && socket.connected) socket.emit("game:reward", { choice });
         document.querySelectorAll(`#reward-player-${playerIndex} .reward-button`).forEach(button => {
             button.disabled = true;
             button.classList.toggle("chosen", button.dataset.reward === choice);
         });
         byId(`reward-player-${playerIndex}`).classList.add("complete");
         Audio.play("reward");
-        renderHands();
-        paintMeters();
-    }
-
-    function nextFloor() {
-        if (!state) return;
-        byId("game-overlay").hidden = true;
-        state.floor++;
-        state.status = "active";
-        state.rewardEndsAt = 0;
-        state.players.forEach(player => {
-            player.rewardReviveBonus = false;
-            player.rewardChoice = null;
-        });
-        spawnEnemy();
-        renderHands();
-        paintMeters();
-        Audio.play("reward");
-    }
-
-    function finishGame(won, reason) {
-        if (!state || state.status === "over") return;
-        state.status = "over";
-        state.projectiles = [];
-        state.hazards = [];
-        const lived = MASTER_TIME_MS - state.timeRemaining;
-        const result = {
-            won,
-            reason,
-            floors: state.stats.floors,
-            durationMs: lived,
-            players: state.players.map(p => ({
-                name: p.name,
-                damage: Math.round(state.stats.damage),
-                blocked: Math.round(state.stats.blocked),
-                cards: state.stats.cards,
-                survivalMs: lived
-            }))
-        };
-        GameOver.show(result, {
-            // Solo: leave this room and start a fresh run straight away
-            onPlayAgain: () => {
-                stop();
-                if (socket && socket.connected) { socket.emit("room:leave"); socket.emit("lobby:solo"); }
-            },
-            onHome: () => {
-                stop();
-                if (socket && socket.connected) socket.emit("room:leave");
-            }
-        });
-        // TEMPORARY: the solo game still runs in the browser, so it reports its own result for the leaderboard.
-        // Once the server runs the game, delete this line: server/game.js passes the result to onOver(result).
-        if (socket && socket.connected) socket.emit("game:report", result);
-        if (won) Audio.play("victory");
-        renderHands();
     }
 
     function drawCover(image) {
@@ -1139,6 +696,267 @@ const Game = (function() {
         });
     }
 
+    function displayPlayerForServerIndex(serverIndex) {
+        if (!state) return null;
+        return state.players.find(player => player.serverIndex === serverIndex) || null;
+    }
+
+    function showNetworkReward() {
+        if (!state || state.status !== "reward" || typeof GameOver === "undefined" || GameOver.isOpen()) return;
+        const overlay = byId("game-overlay");
+        const card = byId("game-overlay-card");
+        const player = state.players[0];
+        const partner = state.players[1];
+        card.replaceChildren();
+
+        const kicker = document.createElement("div");
+        kicker.className = "overlay-kicker";
+        kicker.textContent = `FLOOR ${state.floor} CLEARED`;
+        const title = document.createElement("h2");
+        title.textContent = "Choose your advantage";
+        const copy = document.createElement("div");
+        copy.className = "overlay-copy";
+        copy.textContent = partner
+            ? `${partner.name} ${partner.rewardChoice ? "has chosen." : "is choosing too."} The next floor begins when both Slayers are ready.`
+            : "Choose one advantage before the next floor.";
+        const clock = document.createElement("div");
+        clock.className = "reward-clock";
+        clock.id = "reward-clock";
+        clock.textContent = String(Math.max(0, Math.ceil(state.rewardRemaining / 1000)));
+        const columns = document.createElement("div");
+        columns.className = "reward-columns";
+        const column = document.createElement("section");
+        column.className = "reward-player";
+        column.id = `reward-player-${player.index}`;
+        const heading = document.createElement("h3");
+        heading.textContent = player.name;
+        const options = document.createElement("div");
+        options.className = "reward-options";
+        [
+            ["card", "Draw a card", "Replace one card with a rare strike."],
+            ["buff", "Train", "+12% damage and +10 max HP."],
+            ["heal", "Rest", "Recover 40 HP now."]
+        ].forEach(([id, label, description]) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "reward-button";
+            button.dataset.player = String(player.index);
+            button.dataset.reward = id;
+            const strong = document.createElement("strong");
+            strong.textContent = label;
+            const small = document.createElement("small");
+            small.textContent = description;
+            button.append(strong, small);
+            button.addEventListener("click", () => chooseReward(player.index, id));
+            options.append(button);
+        });
+        column.append(heading, options);
+        columns.append(column);
+        card.append(kicker, title, copy, clock, columns);
+        overlay.hidden = false;
+        if (player.rewardChoice) {
+            column.classList.add("complete");
+            options.querySelectorAll(".reward-button").forEach(button => {
+                button.disabled = true;
+                button.classList.toggle("chosen", button.dataset.reward === player.rewardChoice);
+            });
+        }
+    }
+
+    function applyServerState(snapshot) {
+        if (!state || !snapshot || !Array.isArray(snapshot.players)) return;
+        const previous = new Map(state.players.map(player => [player.username, player]));
+        const serverLocal = snapshot.players.find(player => player.username === localUsername);
+        const ordered = serverLocal
+            ? [serverLocal, ...snapshot.players.filter(player => player.username !== localUsername)]
+            : [...snapshot.players];
+        const previousStatus = state.status;
+        const previousFloor = state.floor;
+
+        state.status = snapshot.status;
+        if (snapshot.status === "over" && previousStatus !== "over" && snapshot.floor === 3 && snapshot.enemy.hp <= 0) {
+            Audio.play("victory");
+        } else if (snapshot.status === "over" && previousStatus !== "over") {
+            Audio.play("defeat");
+        }
+        state.floor = snapshot.floor;
+        state.clock = snapshot.t;
+        state.timeRemaining = snapshot.timeLeft;
+        state.rewardRemaining = snapshot.rewardEndsIn;
+        state.cheat = snapshot.cheat === true;
+        state.scaling = snapshot.scaling;
+        state.players = ordered.map((player, index) => {
+            const old = previous.get(player.username);
+            const lockedSlots = new Set(
+                (player.cooldowns || []).map((remaining, slot) => remaining > 0 ? slot : -1).filter(slot => slot >= 0)
+            );
+            const next = {
+                ...old,
+                index,
+                serverIndex: player.index,
+                username: player.username,
+                name: player.name,
+                hp: player.hp,
+                maxHp: player.maxHp,
+                shield: player.shield,
+                energy: player.energy,
+                energyMax: player.energyMax,
+                energyProgress: player.energyProgress,
+                deckCount: player.deckCount,
+                deck: [],
+                hand: (player.hand || []).map(id => cardById.get(id)).filter(Boolean).map(card => ({ ...card })),
+                lockedSlots,
+                rewardChoice: player.rewardChoice,
+                away: player.away,
+                awayEndsIn: player.awayEndsIn,
+                damageBoost: player.damageBoost,
+                lastEnergyCharge: old && old.lastEnergyCharge != null ? old.lastEnergyCharge : -Infinity,
+                lastDeckReset: old && old.lastDeckReset != null ? old.lastDeckReset : -Infinity,
+                animation: old && old.animation ? old.animation : { name: "idle", startedAt: performance.now() }
+            };
+            applySeat(next, player.index);
+            if (old && old.hp > 0 && next.hp <= 0) setAnimation(next, "defeated");
+            if (old && old.hp <= 0 && next.hp > 0) setAnimation(next, "idle");
+            return next;
+        });
+
+        const enemy = snapshot.enemy;
+        const oldEnemy = state.enemy && state.enemy.id === enemy.id ? state.enemy : null;
+        state.enemy = {
+            ...ENEMIES.find(candidate => candidate.id === enemy.id),
+            ...enemy,
+            x: 640,
+            y: 160,
+            scale: 0.74,
+            attackElapsed: Math.max(0, enemy.attackDelay - enemy.nextAttackIn),
+            vulnerableUntil: state.clock + enemy.vulnerableRemaining,
+            animation: oldEnemy && oldEnemy.animation
+                ? oldEnemy.animation
+                : { name: "idle", startedAt: performance.now() }
+        };
+
+        const handSignature = state.players.map(player =>
+            `${player.username}:${player.hand.map(card => card.id).join(",")}`
+        ).join("|");
+        if (handSignature !== lastHandSignature) {
+            lastHandSignature = handSignature;
+            renderHands();
+        }
+        byId("player-hud-1").hidden = state.players.length < 2;
+        paintAwayBanner();
+        updateNames();
+        paintMeters();
+
+        if (state.status === "reward") {
+            const rewardSignature = `${state.floor}:${state.players.map(player => player.rewardChoice || "-").join(",")}`;
+            if (previousStatus !== "reward" || previousFloor !== state.floor ||
+                state.rewardSignature !== rewardSignature) {
+                state.rewardSignature = rewardSignature;
+                showNetworkReward();
+            }
+        } else if (!GameOver.isOpen()) {
+            byId("game-overlay").hidden = true;
+        }
+    }
+
+    // "Bob lost connection..." while the partner's seat is held for them (the server gives the seconds left)
+    function paintAwayBanner() {
+        const banner = byId("away-banner");
+        const away = state ? state.players.find(player => player.away && player.username !== localUsername) : null;
+        banner.hidden = !away;
+        if (away) {
+            const seconds = Math.ceil((Number(away.awayEndsIn) || 0) / 1000);
+            banner.textContent = `${away.name} lost connection. Waiting for them to come back… ${seconds}s`;
+        }
+    }
+
+    function handleNetworkEffect(effect) {
+        if (!state || !effect) return;
+        const player = displayPlayerForServerIndex(effect.player != null ? effect.player : effect.target);
+        const target = player ? enemyTarget(player) : null;
+        const card = effect.cardId ? cardById.get(effect.cardId) : null;
+        if (effect.type === "card" && player && card) {
+            setAnimation(player, card.action === "block" ? "block" : "attack");
+            const button = player.index === 0
+                ? byId("card-hand-0").querySelector(`[data-slot="${effect.slot}"]`)
+                : null;
+            burnCard(button, card.color);
+            if (card.action === "damage" || card.action === "weaken" || card.action === "vulnerable") {
+                addProjectile(target, { x: state.enemy.x + 125, y: state.enemy.y + 105 }, {
+                    color: card.color,
+                    kind: card.action === "damage" ? "attack" : card.action === "weaken" ? "debuff" : "mark",
+                    duration: card.cost >= 3 ? 700 : 520
+                });
+                if (card.action === "damage") {
+                    addFloating(state.enemy.x + 118, state.enemy.y + 78, `-${effect.amount}`, "#ff7c9b", 20);
+                }
+            } else if (["block", "heal", "energy"].includes(card.action)) {
+                state.effects.push({ kind: card.action === "block" ? "shield" : card.action, playerIndex: player.index, age: 0, duration: 720, color: card.color });
+                const label = card.action === "block" ? `+${effect.amount} SHIELD`
+                    : card.action === "heal" ? `+${effect.amount} HP`
+                    : `+${effect.amount} ENERGY`;
+                addFloating(target.x, target.y - 42, label, card.color, 16);
+            }
+            feed(`${player.name} plays ${card.name}.`);
+            if (effect.combo) callout("SETUP COMBO! +25%");
+            Audio.play(card.action === "block" ? "block" : card.action === "damage" ? "attack" : "reward");
+        } else if (effect.type === "enemy-attack" && target) {
+            setAnimation(state.enemy, "attack");
+            addProjectile({ x: state.enemy.x + 55, y: state.enemy.y + 100 }, target, {
+                color: state.enemy.color, kind: "breath", duration: 800, size: 18
+            });
+            feed(`${state.enemy.name} attacks ${player.name}.`);
+            Audio.play("attack");
+        } else if ((effect.type === "hit" || effect.type === "block") && target) {
+            if (effect.blocked > 0) {
+                addFloating(target.x - 8, target.y - 36, `BLOCK ${effect.blocked}`, "#7bdfff", 14);
+                hudPulse(player.index, "blocked");
+            }
+            if (effect.damage > 0) {
+                addFloating(target.x + 18, target.y - 32, `-${effect.damage}`, "#ff7388", 22);
+                setAnimation(player, "hurt");
+                hudPulse(player.index, "hit");
+                burst(target.x, target.y, "#ff5976", 13);
+                Audio.play("hit");
+            } else {
+                Audio.play("block");
+            }
+        } else if (effect.type === "immune" && target) {
+            addFloating(target.x, target.y - 25, "IMMUNE", "#8ff4ff", 14);
+        } else if (effect.type === "floor") {
+            setAnimation(state.enemy, "defeated");
+            state.projectiles = [];
+            callout(`FLOOR ${effect.floor} CLEARED`);
+            Audio.play("reward");
+        } else if (effect.type === "next-floor") {
+            byId("game-overlay").hidden = true;
+            feed(`Floor ${effect.floor} begins.`);
+        } else if (effect.type === "reward" && player) {
+            feed(`${player.name} chooses ${effect.choice}.`);
+        }
+    }
+
+    function bindNetworkListeners(roomSocket) {
+        if (!roomSocket) return;
+        if (networkSocket && networkSocket !== roomSocket) {
+            networkSocket.off("game:state", applyServerState);
+            networkSocket.off("game:effect", handleNetworkEffect);
+            networkSocket.off("game:cheat", handleNetworkCheat);
+        }
+        if (networkSocket === roomSocket) return;
+        networkSocket = roomSocket;
+        networkSocket.on("game:state", applyServerState);
+        networkSocket.on("game:effect", handleNetworkEffect);
+        networkSocket.on("game:cheat", handleNetworkCheat);
+    }
+
+    function handleNetworkCheat(info) {
+        if (!state || !info) return;
+        state.cheat = info.on === true;
+        feed(`${info.by || "A Slayer"} ${state.cheat ? "enabled" : "disabled"} team cheat mode.`);
+        paintMeters();
+    }
+
     function draw(now) {
         if (!state || !context) return;
         context.clearRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -1179,48 +997,22 @@ const Game = (function() {
         state.floating = state.floating.filter(number => number.age < number.duration);
     }
 
-    function updatePlayers(delta) {
-        state.players.forEach(player => {
-            if (player.hp <= 0) return;
-            if (player.energy < player.energyMax) {
-                player.energyProgress += delta;
-                if (player.energyProgress >= ENERGY_INTERVAL_MS) {
-                    player.energyProgress -= ENERGY_INTERVAL_MS;
-                    player.energy = Math.min(player.energyMax, player.energy + 1);
-                    player.lastEnergyCharge = state.clock;
-                    Audio.play("reward");
-                }
-            } else {
-                player.energyProgress = 0;
-            }
-        });
-    }
-
     function loop(now) {
         if (!state) return;
         const rawDelta = Math.max(0, now - state.lastTick);
         const delta = Math.min(rawDelta, 100);
         state.lastTick = now;
-        state.clock += rawDelta;
-
-        if (state.status === "active") {
-            state.timeRemaining -= rawDelta;
-            if (state.timeRemaining <= 0) {
-                state.timeRemaining = 0;
-                finishGame(false, "The master timer reached 00:00.");
-            } else {
-                updatePlayers(rawDelta);
-                state.enemy.attackElapsed += rawDelta;
-                if (state.enemy.attackElapsed >= state.enemy.attackDelay) {
-                    state.enemy.attackElapsed %= state.enemy.attackDelay;
-                    fireEnemyAttack();
-                }
+        // Between snapshots the clocks keep running so the timers move smoothly
+        if (state.status === "active" && state.enemy) {
+            state.timeRemaining = Math.max(0, state.timeRemaining - rawDelta);
+            state.enemy.attackElapsed += rawDelta;
+            if (state.enemy.attackElapsed > state.enemy.attackDelay) {
+                state.enemy.attackElapsed = state.enemy.attackDelay;
             }
         } else if (state.status === "reward") {
-            const remaining = Math.max(0, state.rewardEndsAt - state.clock);
-            const clock = byId("reward-clock");
-            if (clock) clock.textContent = String(Math.ceil(remaining / 1000));
-            if (remaining <= 0) nextFloor();
+            state.rewardRemaining = Math.max(0, state.rewardRemaining - rawDelta);
+            const rewardClock = byId("reward-clock");
+            if (rewardClock) rewardClock.textContent = String(Math.ceil(state.rewardRemaining / 1000));
         }
 
         updateEffects(delta);
@@ -1234,10 +1026,7 @@ const Game = (function() {
 
     function toggleCheat() {
         if (!state || state.status === "over") return;
-        const player = state.players[0];
-        player.cheat = !player.cheat;
-        feed(player.cheat ? `${player.name} enabled cheat mode.` : `${player.name} disabled cheat mode.`);
-        paintMeters();
+        if (socket && socket.connected) socket.emit("game:cheat", { on: !state.cheat });
     }
 
     function handleKeydown(event) {
@@ -1266,6 +1055,7 @@ const Game = (function() {
     function start(roomSocket, startInfo, currentUser) {
         stop();
         socket = roomSocket || null;
+        localUsername = currentUser && currentUser.username;
         canvas = byId("game-canvas");
         context = canvas.getContext("2d");
         canvas.width = WORLD_WIDTH;
@@ -1279,35 +1069,44 @@ const Game = (function() {
         const localPlayer = currentUser
             ? roomPlayers.find(player => player.username === currentUser.username) || roomPlayers[0]
             : roomPlayers[0];
-        const orderedEnemies = shuffled(ENEMIES);
+        const orderedPlayers = localPlayer
+            ? [localPlayer, ...roomPlayers.filter(player => player.username !== localPlayer.username)]
+            : roomPlayers;
         state = {
-            status: "active",
+            status: "waiting",                          // until the first snapshot arrives
             floor: 1,
             timeRemaining: MASTER_TIME_MS,
             clock: 0,
             lastTick: performance.now(),
-            rewardEndsAt: 0,
-            players: [makePlayer(0, localPlayer ? [localPlayer] : roomPlayers)],
+            rewardRemaining: 0,
+            cheat: false,
+            players: orderedPlayers.map((player, index) => {
+                const view = makePlayer(index, orderedPlayers);
+                view.serverIndex = roomPlayers.findIndex(candidate => candidate.username === player.username);
+                view.username = player.username;
+                applySeat(view, view.serverIndex);
+                return view;
+            }),
             enemy: null,
-            enemyOrder: orderedEnemies,
             projectiles: [],
             hazards: [],
             effects: [],
             particles: [],
-            floating: [],
-            lastUtility: null,
-            stats: { damage: 0, cards: 0, floors: 0, blocks: 0, blocked: 0 }
+            floating: []
         };
 
         byId("game-overlay").hidden = true;
         byId("help-button").style.display = "none";
         byId("battle-feed").replaceChildren();
+        byId("player-hud-1").hidden = state.players.length < 2;
+        byId("mode-label").textContent = state.players.length > 1 ? "CO-OP · 2 PLAYERS" : "SOLO RUN";
         Audio.syncMuted();                                  // keep the sound off in the game if it was turned off in the lobby
         byId("music-toggle").textContent = Audio.muted ? "Sound off" : "Sound on";
-        spawnEnemy();
+        lastHandSignature = "";
+        bindNetworkListeners(socket);
+        updateNames();
         renderHands();
-        paintMeters();
-        feed("Click a card or press 1–4 to play it.");
+        feed("Starting the battle…");
         Audio.unlock();
         animationFrame = requestAnimationFrame(loop);
     }
@@ -1317,11 +1116,14 @@ const Game = (function() {
         if (animationFrame) cancelAnimationFrame(animationFrame);
         animationFrame = null;
         state = null;
+        lastHandSignature = "";
         clearTimeout(calloutTimer);
         if (canvas) context && context.clearRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
         Audio.stop();
         byId("game-overlay") && (byId("game-overlay").hidden = true);
         byId("help-button") && (byId("help-button").style.display = "");
+        byId("player-hud-1") && (byId("player-hud-1").hidden = true);
+        byId("away-banner") && (byId("away-banner").hidden = true);
     }
 
     // Enemy HP per floor as it really is in the game (base HP times the small floor multiplier), for the How to Play pages

@@ -3,7 +3,9 @@
 <head>
     <meta charset="utf-8">
     <title>QuickDraw Slayers</title>
+    <!-- jQuery from its CDN, as in the labs. If the CDN cannot be reached, the copy in scripts/ is used instead. -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script>window.jQuery || document.write('<script src="scripts/jquery-3.7.1.min.js"><\/script>');</script>
     <link href="style.css" rel="stylesheet">
 </head>
 <body>
@@ -65,7 +67,7 @@
                 <div id="register-message" class="message" role="alert"></div>
             </form>
 
-            <p class="landing-note">You stay signed in on this browser until you sign out.</p>
+            <p class="landing-note">You stay signed in while this page is open, and for 15 minutes after you leave.</p>
         </div>
     </div>
 
@@ -85,11 +87,18 @@
             <div id="howto-progress">Page <span id="howto-current">1</span> of <span id="howto-total"></span></div>
             <div id="howto-slides">
 
-            <section class="howto-step" data-group="basics" data-shot="01-goal">
+            <section class="howto-step" data-group="basics" data-shot="01-goal.png">
                 <h3>1. The goal</h3>
-                <p>You and a partner are <b>Slayers</b> fighting exam monsters. Beat the monster on each of the <b>3 floors</b>
-                before the <b>4:00 timer</b> at the top of the screen runs out. Clear all 3 floors and you win!</p>
-                <p>It is <b>real time</b>: there are no turns. You and your partner both play cards whenever you like.</p>
+                <p>You are a <b>Slayer</b> fighting exam monsters. Beat the monster on each of the <b>3 floors</b>
+                before the <b>4:00 clock</b> runs out. Clear all 3 floors and you win! You can play <b>solo</b>, or with a partner in <b>co-op</b>.</p>
+                <p>It is <b>real time</b>: there are no turns. You play cards whenever you like. Here is the battle screen:</p>
+                <ol class="help-legend">
+                    <li><b>Time left:</b> the big clock at the top, with the floor number above it.</li>
+                    <li><b>Enemy:</b> its HP bar, and under it the orange attack timer.</li>
+                    <li><b>Your Slayer:</b> your HP (red) and your Energy (gold pips) sit right under your character.</li>
+                    <li><b>Your hand:</b> 4 cards along the bottom.</li>
+                    <li><b>Deck:</b> the card counter at the bottom right.</li>
+                </ol>
                 <div class="terms">
                     <span><b>HP</b> your health</span>
                     <span><b>Energy</b> fuel for cards</span>
@@ -97,59 +106,100 @@
                     <span><b>Floor</b> one level</span>
                 </div>
             </section>
-            <section class="howto-step" data-group="basics" data-shot="02-play-card">
-                <h3>2. Play a card</h3>
-                <p>You always hold <b>4 cards</b> at the bottom of the screen. To use one, <b>click it</b> or press
-                <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>. It works instantly, and a new card is drawn to replace it.</p>
+            <section class="howto-step" data-group="basics" data-shot="11-coop.png">
+                <h3>2. Solo or co-op</h3>
+                <p>After you sign in, the lobby offers two ways to play:</p>
+                <ul class="help-list">
+                    <li><b>Play Solo:</b> the run starts straight away.</li>
+                    <li><b>Create Room</b> (or join an <b>Open room</b> from the list): wait for a partner, then both press <b>Ready</b>.
+                    A <b>3-2-1 countdown</b> starts the run. Either of you can un-ready to cancel it.</li>
+                </ul>
+                <p>In co-op you and your partner fight the <b>same enemy</b> on your own screens.
+                Your name is shown in <b>gold with "YOU"</b>, your partner's in teal. Your own hand is always the one at the bottom.</p>
+                <p>If your partner loses connection, a banner counts down <b>10 seconds</b> while the game waits for them to come back.
+                If they do not, or if they leave, the run ends. The <b>Sound on/off</b> button at the top right works in the lobby and in the game.</p>
+            </section>
+            <section class="howto-step" data-group="basics" data-shot="02-play-card.gif">
+                <h3>3. Play a card</h3>
+                <p>You always hold <b>4 cards</b> at the bottom of the screen. Move the mouse over a card to read it. To use it, <b>click it</b> or press
+                <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>. It works instantly, and a new card is drawn to replace it.
+                The slot is locked for a moment, so you cannot spam the same one.</p>
                 <p>Each card shows its <b>Energy cost</b> and its type: <b>Attack</b> hurts the enemy, <b>Block</b> protects you,
                 <b>Utility</b> does something special.</p>
             </section>
-            <section class="howto-step" data-group="basics" data-shot="03-energy">
-                <h3>3. Energy</h3>
-                <p>Cards cost <b>Energy</b>, the blue pips at the bottom left. If you do not have enough, the card is greyed out.</p>
+            <section class="howto-step" data-group="basics" data-shot="03-energy.gif">
+                <h3>4. Energy</h3>
+                <p>Cards cost <b>Energy</b>. Your Energy is the row of <b>gold pips under your Slayer</b>. If you do not have enough for a card, it is greyed out.</p>
                 <p>Energy fills back up by itself, <b>1 every 1.8 seconds</b>. The bar holds 4 on floor 1, 5 on floor 2 and
                 6 on floor 3. You start every floor with a <b>full</b> bar.</p>
-                <p class="help-tip">Tip: do not sit on a full bar. Energy that overflows is wasted, so keep playing cards.</p>
+                <p class="help-tip">Tip: do not sit on a full bar. While it is full, nothing refills, so keep playing cards.</p>
             </section>
-            <section class="howto-step" data-group="basics" data-shot="04-enemy-timer">
-                <h3>4. The enemy attack timer</h3>
-                <p>Under the enemy's name there is a <b>red bar that counts down</b>. When it reaches zero the enemy attacks you,
-                and then the bar starts again. A full bar takes about <b>6 seconds</b> (a little less on later floors).</p>
-                <p>So you have two choices before it runs out: <b>defeat the enemy</b>, or <b>block</b> the hit.</p>
+            <section class="howto-step" data-group="basics" data-shot="04-enemy-timer.gif">
+                <h3>5. The enemy attack timer</h3>
+                <p>Under the enemy's HP bar there is an <b>orange bar that counts down</b>, with the name of its attack and the seconds left.
+                When it reaches zero the enemy attacks, and then the bar starts again. A full bar takes about <b>5.5 to 6.5 seconds</b>.</p>
+                <p>Each attack hits <b>one Slayer</b>. With a partner, the enemy <b>takes turns</b>: first one of you, then the other.
+                The feed at the bottom right tells you who was hit.</p>
+                <p>So before the bar runs out you can <b>defeat the enemy</b>, or <b>block</b> the hit.</p>
             </section>
-            <section class="howto-step" data-group="basics" data-shot="05-block">
-                <h3>5. Defend yourself</h3>
+            <section class="howto-step" data-group="basics" data-shot="05-block.gif">
+                <h3>6. Defend yourself</h3>
                 <p>You start with <b>100 HP</b>. If it reaches 0, you are down.</p>
-                <p><b>Block cards</b> give you <b>Shield</b> (up to 60). Shield takes the damage <b>before your HP does</b>.
-                The best moment to block is just before the red timer runs out.</p>
+                <p><b>Block cards</b> give you <b>Shield</b> (up to 60), shown as a blue badge on your Slayer. Shield takes the damage <b>before your HP does</b>.
+                The best moment to block is just before the orange timer runs out, when it is your turn to be hit.</p>
             </section>
-            <section class="howto-step" data-group="basics" data-shot="06-combo">
-                <h3>6. Team up</h3>
-                <p>You and your partner both hit the same enemy, so help each other. For example: one of you plays
-                <b>Bell Curve</b> so the enemy takes extra damage, and the other follows with a big attack.</p>
-                <p>See the <b>Cards</b> tab (the <b>?</b> button) for every combo.</p>
+            <section class="howto-step" data-group="basics" data-shot="06-combo.gif">
+                <h3>7. Combos and teamwork</h3>
+                <p>Good timing makes cards stronger. Play <b>Group Project</b> or <b>Bell Curve</b> first, then hit with <b>any attack within about 2 seconds</b>.
+                You see <b>"SETUP COMBO! +25%"</b> and the attack deals 25% extra damage.</p>
+                <p>With a partner you can share it: one of you plays <b>Bell Curve</b> so the enemy takes extra damage, and the other follows with a big attack.</p>
             </section>
-            <section class="howto-step" data-group="basics" data-shot="07-rewards">
-                <h3>7. Between floors</h3>
+            <section class="howto-step" data-group="basics" data-shot="07-rewards.png">
+                <h3>8. Between floors</h3>
                 <p>After floor 1 and floor 2, a <b>reward screen</b> appears for 5 seconds. Pick one:</p>
                 <ul class="help-list">
-                    <li><b>New card:</b> a random card that costs 2 or more replaces the cheapest card in your hand.</li>
-                    <li><b>Buff:</b> +12% damage for the rest of the run, and +10 max HP.</li>
-                    <li><b>Heal:</b> recover 40 HP.</li>
+                    <li><b>Draw a card:</b> a random card that costs 2 or more replaces the cheapest card in your hand.</li>
+                    <li><b>Train:</b> +12% damage for the rest of the run, and +10 max HP.</li>
+                    <li><b>Rest:</b> recover 40 HP now.</li>
                 </ul>
-                <p>The main timer <b>pauses</b> while you choose, so take your time.</p>
+                <p>The main timer is <b>paused</b> while you choose. The next floor starts when you have both picked, or when the 5 seconds are up
+                (if you do not pick, you get nothing). Your Energy is full again on every new floor.</p>
             </section>
-            <section class="howto-step" data-group="basics" data-shot="08-down">
-                <h3>8. If you go down</h3>
+            <section class="howto-step" data-group="basics" data-shot="08-down.png">
+                <h3>9. If you go down</h3>
                 <p><b>Playing solo:</b> if your HP reaches 0, the run is over (Defeat).</p>
-                <p><b>Playing with a partner:</b> a downed Slayer watches while their partner keeps fighting. Clear the floor and
-                they come back! If <b>both</b> Slayers fall, or the timer reaches 0, it is Defeat.</p>
+                <p><b>Playing with a partner:</b> a downed Slayer is greyed out and watches while their partner keeps fighting. Clear the floor and
+                they come back on the next floor with <b>half HP</b> and full Energy. If <b>both</b> Slayers fall, or the timer reaches 0, it is Defeat.</p>
             </section>
-            <section class="howto-step" data-group="basics" data-shot="09-cheat">
-                <h3>9. Cheat mode</h3>
-                <p>Want to test the game? Press <kbd>C</kbd> to turn <b>cheat mode</b> on or off for yourself. You get unlimited
+            <section class="howto-step" data-group="basics" data-shot="09-cheat.gif">
+                <h3>10. Cheat mode</h3>
+                <p>Want to test the game? Press <kbd>C</kbd> to turn <b>cheat mode</b> on or off for the <b>whole team</b>. Both Slayers get unlimited
                 Energy, take no damage, and deal triple damage.</p>
-                <p>A <b>"CHEAT MODE ACTIVE"</b> label shows at the top left, and your partner is told you are using it.</p>
+                <p>A <b>"CHEAT MODE ACTIVE"</b> label shows at the top left of the screen, and your partner is told who changed it.
+                <b>A run that used cheat mode is not put on the leaderboard.</b></p>
+            </section>
+            <section class="howto-step" data-group="basics" data-shot="10-game-over.png">
+                <h3>11. Game over</h3>
+                <p>The run ends with <b>Victory</b> (all 3 floors cleared) or <b>Defeat</b> (the clock hit 0:00, or every Slayer fell).
+                The result screen shows how many floors you cleared, your run time, and a table for each Slayer:</p>
+                <ul class="help-list">
+                    <li><b>Damage dealt</b> and <b>Damage blocked</b> by Shield</li>
+                    <li><b>Cards played</b></li>
+                    <li><b>Survival time</b></li>
+                </ul>
+                <p>Under the table you see your <b>leaderboard rank</b>. Then choose <b>Play again</b> (a new run with the same partner, or a fresh solo run) or <b>Home</b> to go back to the lobby.</p>
+            </section>
+            <section class="howto-step" data-group="basics" id="howto-leaderboard">
+                <h3>12. The leaderboard</h3>
+                <p>The <b>Hall of Slayers</b> in the lobby lists the 10 best runs. <b>Solo and co-op runs share one board.</b> One name is a solo run, two names are a team run. Here is an example:</p>
+                <div class="lb-example" id="help-leaderboard"></div>
+                <p><b>How runs are ranked, best first:</b></p>
+                <ol class="help-list">
+                    <li>A <b>win</b> beats any loss.</li>
+                    <li>Then more <b>floors cleared</b>.</li>
+                    <li>Wins: the <b>faster time</b>, then more total damage. Losses: <b>more total damage</b>, then the faster time.</li>
+                </ol>
+                <p class="help-tip">Runs that used cheat mode, or where nobody played a card, are not saved. Only the best 100 runs are kept.</p>
             </section>
 
             <!-- CARDS: the grids are filled in by howto.js from the game's card list -->
@@ -160,7 +210,7 @@
             </section>
             <section class="howto-step" data-group="cards" data-cards="BLOCK">
                 <h3>Block cards</h3>
-                <p>Block cards give you <b>Shield</b>, a layer of armor (max 60) that takes the enemy's hit before your HP does. Play one just before the red attack timer runs out.</p>
+                <p>Block cards give you <b>Shield</b>, a layer of armor (max 60) that takes the enemy's hit before your HP does. Play one just before the orange attack timer runs out.</p>
                 <div class="help-cards"></div>
             </section>
             <section class="howto-step" data-group="cards" data-cards="UTILITY">
@@ -183,7 +233,7 @@
                             <img class="mini" src="/images/cards/final_exam.jpg" alt="Final Exam">
                             <span class="badge gold">+25%</span>
                         </div>
-                        <p>Play <b>Group Project</b> or <b>Bell Curve</b> first. Then hit with <b>any attack within 2 seconds</b> for 25% extra damage.</p>
+                        <p>Play <b>Group Project</b> or <b>Bell Curve</b> first. Then hit with <b>any attack within about 2 seconds</b> for 25% extra damage.</p>
                     </div>
 
                     <div class="combo-tile" style="--c:#d989ff">
@@ -222,9 +272,10 @@
             <section class="howto-step" data-group="enemies">
                 <h3>The three bosses</h3>
                 <p>One monster guards each floor. You meet <b>all three</b> every run, in a random order. They get stronger as you climb:
-                floor 1 has <b id="help-hp-1"></b> HP, floor 2 <b id="help-hp-2"></b> and floor 3 <b id="help-hp-3"></b>, and every attack hits <b>7 harder</b> on each new floor.</p>
+                floor 1 has <b id="help-hp-1"></b> HP, floor 2 <b id="help-hp-2"></b> and floor 3 <b id="help-hp-3"></b>, and every attack hits <b>7 harder</b> on each new floor.
+                In co-op, bosses have <b>80% more HP</b> and attacks deal <b>25% more damage</b>.</p>
                 <div class="help-enemies"></div>
-                <p class="help-tip">Tip: watch the red bar under the monster's name. When it empties, the attack lands, so block or finish it first.</p>
+                <p class="help-tip">Tip: watch the orange timer under the monster's HP bar. When it empties, the attack lands, so block or finish it first.</p>
             </section>
             </div>
             <div id="howto-dots"></div>
@@ -272,6 +323,9 @@
                 </section>
                 <section class="rooms-panel leaderboard-panel" aria-label="Hall of Slayers">
                     <div class="rooms-head"><strong>HALL OF SLAYERS</strong><span id="leaderboard-count">0</span></div>
+                    <div id="leaderboard-head" class="lb-row lb-head" hidden>
+                        <span>Rank</span><span>Slayers</span><span>Mode</span><span>Result</span><span>Time</span><span>Damage</span>
+                    </div>
                     <div id="leaderboard-list"></div>
                 </section>
             </div>
@@ -296,32 +350,17 @@
             </div>
         </div>
 
-        <!-- Playable local prototype; multiplayer transport is intentionally deferred. -->
+        <!-- Shared battlefield for local solo and server-authoritative co-op. -->
         <div id="game-view" style="display: none">
             <div class="battlefield-shell">
                 <div class="canvas-frame">
                     <canvas id="game-canvas" width="960" height="540" aria-label="QuickDraw Slayers battle"></canvas>
 
                     <div class="battle-top-hud">
-                        <aside class="fighter-hud" id="player-hud-0" aria-label="Slayer status">
-                            <div class="fighter-heading">
-                                <img src="/images/sprites/grade_farmer.png" alt="">
-                                <div><span class="eyebrow">YOUR SLAYER</span><strong id="player-name-0">Grade Farmer</strong></div>
-                            </div>
-                            <div class="meter-row"><span>HP</span><div class="meter hp-meter"><i id="player-hp-0"></i></div><strong id="player-hp-text-0">100 / 100</strong></div>
-                            <div class="meter-row shield-row"><span>BLOCK</span><div class="meter shield-meter"><i id="player-shield-0"></i></div><strong id="player-shield-text-0">0</strong></div>
-                            <div class="energy-row">
-                                <span>ENERGY</span>
-                                <div class="energy-pips" id="player-energy-0" aria-label="Energy"></div>
-                                <strong id="player-energy-text-0">3 / 3</strong>
-                            </div>
-                            <div class="status-strip player-status-strip" id="player-status-0"></div>
-                        </aside>
-
                         <div class="master-clock" id="master-clock" aria-label="Floor and time remaining">
                             <span class="eyebrow">FLOOR <span id="floor-number">1</span> OF 3</span>
                             <strong id="master-clock-value">04:00</strong>
-                            <span class="prototype-chip">SOLO RUN</span>
+                            <span class="mode-chip" id="mode-label">SOLO RUN</span>
                         </div>
 
                         <div class="enemy-hud">
@@ -340,9 +379,42 @@
                         </div>
                     </div>
 
+                    <div class="slayer-status-layer" aria-label="Slayer status">
+                        <aside class="fighter-hud slayer-hud slayer-0" id="player-hud-0">
+                            <strong class="slayer-tag" id="player-tag-0"></strong>
+                            <div class="meter hp-meter" aria-label="Health">
+                                <i id="player-hp-0"></i>
+                                <strong id="player-hp-text-0">100 / 100</strong>
+                            </div>
+                            <div class="energy-row">
+                                <div class="energy-pips" id="player-energy-0" aria-label="Energy"></div>
+                            </div>
+                            <span class="shield-badge" id="player-shield-badge-0" aria-label="Shield" hidden>
+                                <svg viewBox="0 0 40 48" aria-hidden="true"><path d="M20 2 36 8v13c0 11-6.8 20.1-16 25C10.8 41.1 4 32 4 21V8Z"/><path class="shield-shine" d="m20 6 12 4.5V21c0 8.4-4.6 15.1-12 19.8Z"/></svg>
+                                <strong id="player-shield-text-0">0</strong>
+                            </span>
+                        </aside>
+
+                        <aside class="fighter-hud slayer-hud slayer-1" id="player-hud-1" hidden>
+                            <strong class="slayer-tag" id="player-tag-1"></strong>
+                            <div class="meter hp-meter" aria-label="Health">
+                                <i id="player-hp-1"></i>
+                                <strong id="player-hp-text-1">100 / 100</strong>
+                            </div>
+                            <div class="energy-row">
+                                <div class="energy-pips" id="player-energy-1" aria-label="Partner energy"></div>
+                            </div>
+                            <span class="shield-badge" id="player-shield-badge-1" aria-label="Shield" hidden>
+                                <svg viewBox="0 0 40 48" aria-hidden="true"><path d="M20 2 36 8v13c0 11-6.8 20.1-16 25C10.8 41.1 4 32 4 21V8Z"/><path class="shield-shine" d="m20 6 12 4.5V21c0 8.4-4.6 15.1-12 19.8Z"/></svg>
+                                <strong id="player-shield-text-1">0</strong>
+                            </span>
+                        </aside>
+                    </div>
+
                     <div class="combo-callout" id="combo-callout" aria-live="polite"></div>
                     <div class="battle-feed" id="battle-feed" aria-live="polite"></div>
                     <div class="cheat-badge" id="cheat-badge">CHEAT MODE ACTIVE</div>
+                    <div class="away-banner" id="away-banner" role="status" hidden></div>
 
                     <section class="hand-zone" id="hand-zone-0" aria-label="Your hand">
                         <div class="card-hand" id="card-hand-0"></div>
@@ -367,6 +439,7 @@
 <script src="scripts/howto.js"></script>
 <script src="scripts/gameover.js"></script>
 <script src="scripts/lobby.js"></script>
+<script src="scripts/game_data.js"></script>
 <script src="scripts/game.js"></script>
 <script>
 $(function() {
