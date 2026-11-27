@@ -885,7 +885,12 @@ const Game = (function() {
                 addProjectile(target, { x: state.enemy.x + 125, y: state.enemy.y + 105 }, {
                     color: card.color,
                     kind: card.action === "damage" ? "attack" : card.action === "weaken" ? "debuff" : "mark",
-                    duration: card.cost >= 3 ? 700 : 520
+                    duration: card.cost >= 3 ? 700 : 520,
+                    onHit: card.action === "damage" ? () => {
+                        if (state && state.enemy && state.enemy.hp > 0 && state.enemy.animation.name !== "defeated") {
+                            setAnimation(state.enemy, "hurt");
+                        }
+                    } : null
                 });
                 if (card.action === "damage") {
                     addFloating(state.enemy.x + 118, state.enemy.y + 78, `-${effect.amount}`, "#ff7c9b", 20);
